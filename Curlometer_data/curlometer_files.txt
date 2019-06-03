@@ -1,7 +1,7 @@
-C:\Users\kbergste\MMS\Curlometer_data\output_test0.txt
-C:\Users\kbergste\MMS\Curlometer_data\output_test1.txt
-C:\Users\kbergste\MMS\Curlometer_data\output_test2.txt
-C:\Users\kbergste\MMS\Curlometer_data\output_test3.txt
-C:\Users\kbergste\MMS\Curlometer_data\output_test4.txt
-C:\Users\kbergste\MMS\Curlometer_data\output_test5.txt
-C:\Users\kbergste\MMS\Curlometer_data\output_test6.txt
+C:\Users\kbergste\GitHub\mms-structure-finder\Curlometer_data\output0.txt
+C:\Users\kbergste\GitHub\mms-structure-finder\Curlometer_data\output1.txt
+C:\Users\kbergste\GitHub\mms-structure-finder\Curlometer_data\output2.txt
+C:\Users\kbergste\GitHub\mms-structure-finder\Curlometer_data\output3.txt
+C:\Users\kbergste\GitHub\mms-structure-finder\Curlometer_data\output4.txt
+C:\Users\kbergste\GitHub\mms-structure-finder\Curlometer_data\output5.txt
+C:\Users\kbergste\GitHub\mms-structure-finder\Curlometer_data\output6.txt

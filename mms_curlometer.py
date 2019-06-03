@@ -10,16 +10,24 @@ import datetime as dt # for dates
 from matplotlib import dates # for formatting axes
 import pytz #for my own time stuff
 import scipy.interpolate as interp #for interpolating to MMS1 timeseries
+import os #to find local directory
 
 # User-defined variables:
 
-# Path to data:
-path = "C:\\Users\\kbergste\\MMS"
+# Base path:
+path = os.getcwd()
 # File location key name:
-loc_file=r"key_for_curlometer.txt"
+loc_file = r"key_for_curlometer.txt"
+# Output file location key name:
+out_loc_file = r"curlometer_files.txt"
 
-# Filename for output current density (minus number):
-outfile = r"C:\\Users\\kbergste\\MMS\\Curlometer_data\\output_test"
+#directories for outputs, input data:
+outpath="Curlometer_data"
+datpath="MMS"
+# output file start for output current density (minus number):
+outfile = os.path.join(path,outpath,"output")
+# output file location key (full path)
+keyfile = os.path.join(path,outpath,out_loc_file)
 
 # Plot filenames:
 BJQFileName = 'test_BJQ.png'
@@ -146,7 +154,7 @@ def curlometer(d1, d2, d3, d4):
 MMS_num = [str(x) for x in range(1,5)]
 MMS=['MMS'+str(x) for x in range(1,5)]
 
-loc_file_whole=path+"\\"+loc_file
+loc_file_whole=os.path.join(path,loc_file)
 bfield_files=filenames_get(loc_file_whole)
 
 #iterating over each time interval    
@@ -157,7 +165,7 @@ for file_num,file in enumerate(bfield_files):
     pos = {}
     
     for n,M_num in enumerate(MMS_num):
-        file_whole=path+"\\"+M_num+"\\mms"+M_num+file
+        file_whole=os.path.join(path,datpath,M_num,"mms"+M_num+file)
         tmp1,tmp2,misshape_1,misshape_2=get_cdf_var(file_whole,
                                                  ['Epoch','Epoch_state',
                                                   'mms'+M_num+'_fgm_b_gsm_brst_l2',
@@ -247,159 +255,12 @@ for file_num,file in enumerate(bfield_files):
             ', ' + str(j['Jz']) +', '+ str(j['divBcurlB'])+'\n'
             f.write(outstring)
 
-## Haven't done anything with this shit yet lolz
-#    '''Pull out the mag field used for the calculation'''            
-#    Magnpt = {}
-#    for c in cluster:
-#        Bx, By, Bz, Bmag = [], [], [], []
-#        for p in tarr:
-#            if c in clean[p].keys():
-#                Bx.append(clean[p][c][0])
-#                By.append(clean[p][c][1])
-#                Bz.append(clean[p][c][2])
-#                Bmag.append(math.sqrt(clean[p][c][0]**2 + clean[p][c][1]**2 + clean[p][c][2]**2))
-#            else:
-#                Bx.append(np.nan)
-#                By.append(np.nan)
-#                Bz.append(np.nan)
-#                Bmag.append(np.nan)
-#        Magnpt[c] = [Bx, By, Bz, Bmag]
-#    
-#    '''Take times and put as date into list'''
-#    tdate = []
-#    for t in tarr:
-#        tdate.append(dates.date2num(dt.datetime.utcfromtimestamp(t/1000)))
-#    
-#        
-#    '''Plot the B field and the current density and divB/curlB'''
-#    fig = plt.figure(figsize=(8.5, 12))
-#    
-#    hfmt = dates.DateFormatter('%H:%M')
-#    minutes = dates.MinuteLocator(interval=2)
-#    
-#    sub1=fig.add_subplot(811)
-#    plt.plot(tdate, Magnpt['C1'][2], color='black', linestyle='-', label = 'C1')
-#    plt.plot(tdate, Magnpt['C2'][2], color='red', linestyle='-', label = 'C2')
-#    plt.plot(tdate, Magnpt['C3'][2], color='green', linestyle='-', label = 'C3')
-#    plt.plot(tdate, Magnpt['C4'][2], color='blue', linestyle='-', label = 'C4')
-#    plt.ylim(-20, 30)
-#    plt.yticks([-20,-10,0,10,20,30]) 
-#    plt.ylabel('Bz (nT)')
-#    sub1.xaxis.set_major_locator(minutes)
-#    sub1.xaxis.set_major_formatter(hfmt)
-#    plt.legend(bbox_to_anchor=(1.02, 1), loc=2, borderaxespad=0., fontsize='small')
-#    
-#    sub2=fig.add_subplot(812)
-#    plt.plot(tdate, Magnpt['C1'][1], color='black', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C2'][1], color='red', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C3'][1], color='green', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C4'][1], color='blue', linestyle='-' )
-#    plt.ylim(-20, 20)
-#    plt.yticks([-20, -10, 0, 10, 20])
-#    plt.ylabel('By (nT)')
-#    sub2.xaxis.set_major_locator(minutes)
-#    sub2.xaxis.set_major_formatter(hfmt)
-#    
-#    sub3=fig.add_subplot(813)
-#    plt.plot(tdate, Magnpt['C1'][0], color='black', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C2'][0], color='red', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C3'][0], color='green', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C4'][0], color='blue', linestyle='-' )
-#    plt.ylim(-20, 20)
-#    plt.yticks([-20, -10, 0, 10, 20])
-#    plt.ylabel('Bx (nT)')
-#    sub3.xaxis.set_major_locator(minutes)
-#    sub3.xaxis.set_major_formatter(hfmt)
-#    
-#    sub4=fig.add_subplot(814)
-#    plt.plot(tdate, Magnpt['C1'][3], color='black', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C2'][3], color='red', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C3'][3], color='green', linestyle='-' )
-#    plt.plot(tdate, Magnpt['C4'][3], color='blue', linestyle='-' )
-#    plt.ylim(0, 30)
-#    plt.yticks([0, 10, 20, 30])
-#    plt.ylabel('|B| (nT)')
-#    sub4.xaxis.set_major_locator(minutes)
-#    sub4.xaxis.set_major_formatter(hfmt)
-#    
-#    sub5=fig.add_subplot(815)
-#    plt.plot(tdate, Jave['Jz']*1e9, color='black', linestyle='-' )
-#    plt.ylim(-15, 10)
-#    plt.yticks([-15, -10, -5, 0, 5, 10])
-#    plt.ylabel(r'$\mathbf{J}_Z (nA/m^2)$')
-#    sub5.xaxis.set_major_locator(minutes)
-#    sub5.xaxis.set_major_formatter(hfmt)
-#    
-#    sub6=fig.add_subplot(816)
-#    plt.plot(tdate, Jave['Jy']*1e9, color='red', linestyle='-' )
-#    plt.ylim(-20, 20)
-#    plt.yticks([-20, -10, 0, 10, 20])
-#    plt.ylabel(r'$\mathbf{J}_Y (nA/m^2)$')
-#    sub6.xaxis.set_major_locator(minutes)
-#    sub6.xaxis.set_major_formatter(hfmt)
-#    
-#    sub7=fig.add_subplot(817)
-#    plt.plot(tdate, Jave['Jx']*1e9, color='green', linestyle='-' )
-#    plt.ylim(-10, 20)
-#    plt.yticks([-10, 0, 10, 20])
-#    plt.ylabel(r'$\mathbf{J}_X (nA/m^2)$')
-#    sub7.xaxis.set_major_locator(minutes)
-#    sub7.xaxis.set_major_formatter(hfmt)
-#    
-#    sub8=fig.add_subplot(818)
-#    plt.plot(tdate, Jave['divBcurlB'], color='blue', linestyle='-' )
-#    plt.ylim(0, 2)
-#    plt.yticks([0, 1, 2])
-#    plt.ylabel(r'$|{\rm {div}}\,\mathbf{B}|/|{\rm {curl}}\,\mathbf{B}|$')
-#    sub8.xaxis.set_major_locator(minutes)
-#    sub8.xaxis.set_major_formatter(hfmt)
-#    plt.xlabel(XAxisLabel)
-#    plt.savefig(BJQFileName, dpi=300)
-#    #plt.show()
-#    plt.close()
-#    
-#    '''Read in the geometry data'''
-#    
-#    all_data = {}
-#    folder = 'CL_SP_AUX/*.cef'
-#    filename = glob.glob(path+folder)
-#    ceflib.read(filename[0])
-#    
-#    time = deepcopy(ceflib.var('time_tags')) # in milli-seconds
-#    QG = deepcopy(ceflib.var('sc_config_QG'))
-#    QR = deepcopy(ceflib.var('sc_config_QR'))
-#    E = deepcopy(ceflib.var('sc_geom_elong'))
-#    P = deepcopy(ceflib.var('sc_geom_planarity'))
-#    ceflib.close()
-#    
-#    
-#    tgdate = []
-#    for t in time:
-#        tgdate.append(dates.date2num(dt.datetime.utcfromtimestamp(t/1000)))
-#    
-#    gminutes = dates.MinuteLocator(interval=2)
-#    
-#    '''Plot the geometrical parameters'''
-#    fig = plt.figure(figsize=(8, 5))
-#    
-#    gsub1 = fig.add_subplot(211)
-#    plt.plot(tgdate, P, label = 'Planarity')
-#    plt.plot(tgdate, E, label = 'Elongation')
-#    plt.legend(bbox_to_anchor=(0.4, 0.8), loc=2, borderaxespad=0., fontsize='small')
-#    gsub1.xaxis.set_major_locator(gminutes)
-#    gsub1.xaxis.set_major_formatter(hfmt)
-#    
-#    gsub2 = fig.add_subplot(212)
-#    plt.plot(tgdate, QR, label = r'$Q_R$')
-#    plt.plot(tgdate, QG, label = r'$Q_G$')
-#    plt.xlabel('Time on 4th February 2001')
-#    plt.ylim(0, 3.5)
-#    gsub2.xaxis.set_major_locator(gminutes)
-#    gsub2.xaxis.set_major_formatter(hfmt)
-#    plt.legend(bbox_to_anchor=(0.4, 0.75), loc=2, borderaxespad=0., fontsize='small', ncol=2)
-#    plt.savefig(GeomFileName, dpi=300)
-#    
-#    #plt.show()
-#    plt.close()
+''' Write out what the output files are to the output key file '''
+with open(keyfile, 'w') as f:
+    for file_num,file in enumerate(bfield_files):
+        outstring=outfile+str(file_num)+".txt"+'\n'
+        f.write(outstring)
+        
 
 #TODO: Possibly try different interpolation styles than linear?
+        
