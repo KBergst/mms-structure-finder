@@ -1,0 +1,7 @@
+C:\Users\kbergste\MMS\Curlometer_data\output_test0.txt
+C:\Users\kbergste\MMS\Curlometer_data\output_test1.txt
+C:\Users\kbergste\MMS\Curlometer_data\output_test2.txt
+C:\Users\kbergste\MMS\Curlometer_data\output_test3.txt
+C:\Users\kbergste\MMS\Curlometer_data\output_test4.txt
+C:\Users\kbergste\MMS\Curlometer_data\output_test5.txt
+C:\Users\kbergste\MMS\Curlometer_data\output_test6.txt
