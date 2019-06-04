@@ -1,7 +1,7 @@
-C:\Users\kbergste\MMS\3\mms3_fgm_brst_l2_20170726071653_v5.98.0.cdf
-C:\Users\kbergste\MMS\3\mms3_fgm_brst_l2_20170726072113_v5.98.0.cdf
-C:\Users\kbergste\MMS\3\mms3_fgm_brst_l2_20170726072613_v5.98.0.cdf
-C:\Users\kbergste\MMS\3\mms3_fgm_brst_l2_20170726073113_v5.98.0.cdf
-C:\Users\kbergste\MMS\3\mms3_fgm_brst_l2_20170726073213_v5.98.0.cdf
-C:\Users\kbergste\MMS\3\mms3_fgm_brst_l2_20170726073613_v5.98.0.cdf
-C:\Users\kbergste\MMS\3\mms3_fgm_brst_l2_20170726073713_v5.98.0.cdf
+mms3_fgm_brst_l2_20170726071653_v5.98.0.cdf
+mms3_fgm_brst_l2_20170726072113_v5.98.0.cdf
+mms3_fgm_brst_l2_20170726072613_v5.98.0.cdf
+mms3_fgm_brst_l2_20170726073113_v5.98.0.cdf
+mms3_fgm_brst_l2_20170726073213_v5.98.0.cdf
+mms3_fgm_brst_l2_20170726073613_v5.98.0.cdf
+mms3_fgm_brst_l2_20170726073713_v5.98.0.cdf

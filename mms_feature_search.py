@@ -23,19 +23,24 @@ import scipy.signal as signal #for extrema finding
 import scipy.constants as const
 from matplotlib.ticker import LogLocator,LogFormatter #for plotting log hists
 import time #for checking code runspeed
+import os #for generalization to all systems
 
 #tracker=SummaryTracker() #for tracking memory usage
 start=time.time() 
 
-path=r"C:\Users\kbergste\MMS"
+#path and file information
+path=os.getcwd()
+data_dir="MMS"
 bfield_names_file=r"Bfield_file_location_key.txt"
 dis_names_file=r"dis_file_location_key.txt"
 des_names_file=r"des_file_location_key.txt"
-j_names_file=r"Curlometer_data\curlometer_files.txt"
-plot_out_directory=r"\feature_search"
+curlometer_dir="Curlometer_data"
+j_names_file=os.path.join(curlometer_dir,"curlometer_files.txt")
+plot_out_directory=r"feature_search"
 plot_out_name=r"Crossing"
-statistics_out_directory=r"\feature_search\statistics"
-scales_out_directory=r"\feature_search\structure_scale_comparisons"
+statistics_out_directory=os.path.join(plot_out_directory,"statistics")
+scales_out_directory=os.path.join(plot_out_directory,
+                                  "structure_scale_comparisons")
 
 #parameters (to fiddle with)
 boxcar_width=30 #number of points to boxcar average the electron density over
@@ -54,6 +59,15 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
 E_CHARGE_mC=const.e*1e6 #electron charge in microcoulombs
 REPLOT=1 #chooses whether to regenerate the graphs or not
 
+def directory_ensurer(directory):
+    '''
+    Ensures that the directory specified by the given path exists
+    Important for initializing the code on a new machine, since folders
+    that only contain output files which are not tracked by git (.png)
+    will not be initially present in the github file
+    '''
+    os.makedirs(directory, exist_ok=True)
+        
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
     Modified from the plot_mms_values version
@@ -226,8 +240,8 @@ def structure_hist_maker(data,structure_type,out,log=False):
     if log:
         structure_type+='_log'
         
-    fig.savefig(path+statistics_out_directory+'\\'+"size_hist_"+ \
-                structure_type+".png", bbox_inches='tight')
+    fig.savefig(os.path.join(path,statistics_out_directory,"size_hist_"+ \
+                structure_type+".png"), bbox_inches='tight')
     plt.close(fig='all')
     
 def filenames_get(name_list_file):
@@ -588,6 +602,11 @@ def fluct_abt_avg(array):
     return array - np.average(array)
 
 ###### MAIN ###################################################################
+#ensuring that the needed output directories exist
+directory_ensurer(os.path.join(path,plot_out_directory))
+directory_ensurer(os.path.join(path,statistics_out_directory))
+directory_ensurer(os.path.join(path,scales_out_directory))
+
 #initialize variables that cannot be local to loop over MMS satellites
 MMS=[str(x) for x in range(1,5)]
 MMS_structure_counts={} #dictionary for counts of each structure type
@@ -610,10 +629,10 @@ for M in MMS:
     MMS_cs_sizes[M]=np.array([])
     MMS_merging_cs_sizes[M]=np.array([])
     
-    b_list=filenames_get(path+'//'+M+'//'+bfield_names_file)
-    dis_list=filenames_get(path+'//'+M+'//'+dis_names_file)
-    des_list=filenames_get(path+'//'+M+'//'+des_names_file)
-    j_list=filenames_get(path+'//'+j_names_file)
+    b_list=filenames_get(os.path.join(path,data_dir,M,bfield_names_file))
+    dis_list=filenames_get(os.path.join(path,data_dir,M,dis_names_file))
+    des_list=filenames_get(os.path.join(path,data_dir,M,des_names_file))
+    j_list=filenames_get(os.path.join(path,j_names_file))
 
     b_labels=['MMS'+M+' GSM B-field vs. time', 'Time','Bz GSM (nT)']
     j_labels=['MMS GSM curlometer current density vs. time','Time', 
@@ -641,8 +660,13 @@ for M in MMS:
     TT_time_ni=np.array([])
     TT_time_ne=np.array([])
     
-    for b_file,j_file,dis_file,des_file in zip(b_list,j_list,dis_list,
+    for b_stub,j_stub,dis_stub,des_stub in zip(b_list,j_list,dis_list,
                                                des_list):
+        #create full paths
+        b_file=os.path.join(path,data_dir,M,b_stub)
+        j_file=os.path.join(path,data_dir,M,j_stub)
+        dis_file=os.path.join(path,data_dir,M,dis_stub)
+        des_file=os.path.join(path,data_dir,M,des_stub)
         #read and process b-field data
         TT_time_tmp,temp=get_cdf_var(b_file,['Epoch',
                                              'mms'+M+'_fgm_b_gsm_brst_l2'])
@@ -840,8 +864,8 @@ for M in MMS:
                      +crossing_size_label+crossing_de_label+crossing_dp_label,
                      wrap=True,transform=ax6.transAxes,fontsize=16,ha='center',
                      va='center')
-            fig.savefig(path+plot_out_directory+'\\'+'MMS'+M+'_'+ \
-                        plot_out_name+str(i)+".png", bbox_inches='tight')
+            fig.savefig(os.path.join(path,plot_out_directory,'MMS'+M+'_'+ \
+                        plot_out_name+str(i)+".png"), bbox_inches='tight')
             plt.close(fig='all')
         
             if (i % 30 == 0):
@@ -861,17 +885,17 @@ for M in MMS:
                                 b_labels,plot_limits_large) #plot B large
                 line_maker([ax1,ax2],crossing_times[i],
                            crossing_struct_times[i])   
-                fig.savefig(path+scales_out_directory+'\\'+'MMS'+M+'_'+ \
-                            plot_out_name+str(i)+".png", bbox_inches='tight')
+                fig.savefig(os.path.join(path,scales_out_directory,'MMS'+M+'_'+ \
+                            plot_out_name+str(i)+".png"), bbox_inches='tight')
                 plt.close(fig='all')
             
 #        tracker.print_diff() #for detecting memory leaks
 
-#        if (i==15): #debug option
-#            #check how long the code took to run
-#            end=time.time()
-#            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
-#            sys.exit("done with test cases")  
+        if (i==15): #debug option
+            #check how long the code took to run
+            end=time.time()
+            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
+            sys.exit("done with test cases")  
 
 """ STATISTICAL PART """
 
@@ -880,8 +904,8 @@ fig_bar,ax_bar=plt.subplots()
 bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
                                          'Type of structure',
                                          'Number of instances']) 
-fig_bar.savefig(path+statistics_out_directory+'\\'+"types_bar_chart"+".png",
-            bbox_inches='tight')
+fig_bar.savefig(os.path.join(path,statistics_out_directory,
+                             "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')
 ''' make histograms of the x-lengths of all structures''' 
 structure_hist_maker(MMS_allstruct_sizes,"all structures",1)

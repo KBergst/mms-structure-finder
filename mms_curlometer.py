@@ -10,7 +10,7 @@ import datetime as dt # for dates
 from matplotlib import dates # for formatting axes
 import pytz #for my own time stuff
 import scipy.interpolate as interp #for interpolating to MMS1 timeseries
-import os #to find local directory
+import os #for generalization to all systems
 
 # User-defined variables:
 
