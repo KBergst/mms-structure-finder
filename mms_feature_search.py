@@ -65,13 +65,33 @@ def directory_ensurer(directory):
     Important for initializing the code on a new machine, since folders
     that only contain output files which are not tracked by git (.png)
     will not be initially present in the github file
+    Inputs:
+        directory- string containing full path to the desired directory
+    Outputs:
+        none
     '''
     os.makedirs(directory, exist_ok=True)
         
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
-    Modified from the plot_mms_values version
-    For timeseries plots ONLY
+    plotter function using matplotlib (mpl) objects
+    For timeseries plots ONLY (may generalize in the future)
+    Times used are datetime objects
+    Inputs:
+        fig- the mpl Figure object used
+        ax- the mpl Axes object used
+        data1- the x-axis variables (numpy array of datetime objects)
+        data2- the y-axis variables
+        labels- list of three strings, 
+            labels[0] is the plot title
+            labels[1] is the x label 
+            labels[2] is the y label
+        lims- list containing the plotting limits for the x axis
+            lims[0] is the minimum x-value 
+            lims[1] is the maximum x-value
+        legend- possible string for the legend of this data. Default is None
+    Outputs:
+        out- the ax.plot instance used
     '''
     #formatting the x axis and ticks  
     ax.set_xlim(lims[0],lims[1]) 
@@ -85,9 +105,17 @@ def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
 
 def line_maker(axes,time,edges):
     '''
-    Makes all horizontal/vertical lines needed
+    Makes all horizontal/vertical lines needed on the timeseries plots
     Currently makes a horizontal line at zero and a vertical line at 'time'
     and two more vertical lines at the edge times of the structure
+    Times used are datetime objects
+    Inputs:
+        axes- list-like object of multiple mpl Axes to draw lines on
+        time- the central time which will have a red vertical line
+        edges- list-like object of the locations of the two blue vertical lines
+    
+    TODO: Check if the case of a single Axes instance being passed is handled
+        correctly
     '''
     for ax in axes:
         ax.axhline(color="black")
@@ -98,12 +126,18 @@ def line_maker(axes,time,edges):
 def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
     '''
     Makes histograms, for the statistical processing
-    ax- the axes object used
-    values- numpy array for hist
-    labels- title, x label, y label
-    limits- list of [min value, max value]
-    n_bins- desired number of bins
-    logscale- true if want log, false if not
+    Inputs:
+        ax- the mpl Axes object used
+        values- numpy array for hist
+        labels- list of three strings, 
+            labels[0] is the plot title
+            labels[1] is the x label 
+            labels[2] is the y label
+        limits- list of [min value, max value]
+        n_bins- desired number of bins, default is 10
+        logscale- True if want log, False if not, default is False
+    Outputs:
+        out- the ax.hist instance used
     '''
     
     ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
@@ -135,7 +169,7 @@ def log_hist_bins(limits,n_bins):
     helper function for histogram_plotter to compute evenly spaced bins
     for plotting the log-log histogram.
     inputs:
-        values- the list of values to be turned into a histogram
+        limits- list-like object of the minimum and maximum values for the bins
         n_bins- the desired number of bins
     outputs:
         bins- the locations of the bins desired
@@ -152,7 +186,7 @@ def hist_bins(limits,n_bins):
     helper function for histogram_plotter to compute evenly spaced bins
     for plotting the regular histogram.
     inputs:
-        values- the list of values to be turned into a histogram
+        limits- list-like object of the minimum and maximum values for the bins
         n_bins- the desired number of bins
     outputs:
         bins- the locations of the bins desired
@@ -167,11 +201,19 @@ def hist_bins(limits,n_bins):
 def bar_charter(ax,data,labels):
     '''
     Makes bar charts, for summary statistics
-    Takes data as a dictionary of dictionaries
-    outer dictionary gives the legend groups (e.g. MMS1, MMS2, ...)
-    inner dictionary gives the different values for the bars
-        (e.g. plasmoid, current sheet)
-        (MUST be the same keys over all groups!)
+    Inputs:
+        ax- the mpl Axes object used
+        data- a dictionary of dictionaries
+            outer dictionary gives the legend groups (e.g. MMS1, MMS2, ...)
+            inner dictionary gives the different values for the bars
+            (e.g. plasmoid, current sheet)
+            (MUST be the same keys over all groups!)
+        labels- list of three strings, 
+            labels[0] is the plot title
+            labels[1] is the x label 
+            labels[2] is the y label
+    Outputs:
+        data_bars- list of the different bars of the bar chart        
     '''
     spacing=0.2  #desired distance between bars of different groups
     legends=list(data.keys())
@@ -196,10 +238,13 @@ def structure_hist_maker(data,structure_type,out,log=False):
     A specialized function for plotting histograms of structure sizes for 
     a given structure type.
     Inputs:
-        A dictionary with keys of the satellites and values of arrays of sizes.
-        A string containing the desired output location
-        A list of plot labels [title,xlabel,ylabel]
+        data-A dictionary with keys of the satellites and 
+            values of arrays of sizes.
+        structure_type- a string naming the kind of structure being plotted
+        out- A string containing the desired output location
+        log-True if want log scale, False if not, default is False
     Outputs:
+        no output (void)
         Writes the histograms to a file at the given output location
     '''
     #structure data
@@ -248,6 +293,12 @@ def filenames_get(name_list_file):
     '''
     Pulls list of filenames I'm using from the file where they are stored.
     Allows some flexibility
+    Inputs:
+        name_list_file- string which constains the full path to the file which
+            contains a list of the full filename paths needed
+    Outputs:
+        name_list- list of strings which contain the full path to 
+            each file
     '''
     name_list=[]
     with open(name_list_file,"r") as name_file_obj: #read-only access
@@ -944,6 +995,7 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
 #Later Priorities:
 #TODO: clean up functions so they are in a logical order (alphabetical?)
 #TODO: make sure function documentation (inputs,outputs, etc.) is clear
+#TODO: put global parameters in their own file (as makes sense)
 #TODO: interpolate Bz to find exact time of zero crossing  for vertical line
 #TODO: capitalize all parameters
 #TODO: set maximum yrange of the velocity data to max of curlometer ve  
