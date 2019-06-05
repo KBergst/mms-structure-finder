@@ -14,6 +14,19 @@ import matplotlib as mpl
 import numpy as np
 import os
 
+def directory_ensurer(directory):
+    '''
+    Ensures that the directory specified by the given path exists
+    Important for initializing the code on a new machine, since folders
+    that only contain output files which are not tracked by git (.png)
+    will not be initially present in the github file
+    Inputs:
+        directory- string containing full path to the desired directory
+    Outputs:
+        none
+    '''
+    os.makedirs(directory, exist_ok=True)
+
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
     plotter function using matplotlib (mpl) objects

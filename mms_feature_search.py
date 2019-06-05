@@ -10,6 +10,7 @@ A current sheet / flux rope searcher for MMS burst data.
 """
 #mms-specific in-house modules
 import mmsplotting as mmsp
+import mmstimes as mt
 
 #canned packages
 import numpy as np
@@ -17,7 +18,6 @@ import cdflib #NEEDS python 3.7 to run
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import datetime as dt
-import pytz #for timezone info
 import sys #for debugging
 #from pympler.tracker import SummaryTracker #for tracking memory usage
 from dateutil.parser import parse #for reading dates from file
@@ -61,21 +61,6 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
 E_CHARGE_mC=const.e*1e6 #electron charge in microcoulombs
 REPLOT=1 #chooses whether to regenerate the graphs or not
 
-
-    
-def directory_ensurer(directory):
-    '''
-    Ensures that the directory specified by the given path exists
-    Important for initializing the code on a new machine, since folders
-    that only contain output files which are not tracked by git (.png)
-    will not be initially present in the github file
-    Inputs:
-        directory- string containing full path to the desired directory
-    Outputs:
-        none
-    '''
-    os.makedirs(directory, exist_ok=True)
-
     
 def filenames_get(name_list_file):
     '''
@@ -94,46 +79,6 @@ def filenames_get(name_list_file):
              line_clean =line.rstrip('\n') #removes newline chars from lines
              name_list.append(line_clean)
     return name_list 
-
-def TTtime2datetime(time_nanosecs):
-    """
-    converts MMS CDF times (nanoseconds, TT 2000) to 
-    matplotlib datetime objects
-    """    
-    start_date=dt.datetime(2000,1,1,hour=11,minute=58,second=55,
-                                 microsecond=816000)
-        # see https://aa.usno.navy.mil/faq/docs/TT.php for explanation of
-        # this conversion time
-    start_num=mpl.dates.date2num(start_date) #num of start date of time data
-    fudge_factor=5/60/60/24 #correction amount (unsure why need)
-        #incidentally 5 is the number of leap seconds since 2000. Coincidence?
-    time_days=time_nanosecs/1e9/60/60/24 #convert nanoseconds to days
-    time_num=time_days+start_num-fudge_factor #convert TT2000 to matplotlib num time
-    times=[]
-    if time_num.size>1:
-        for t in time_num:
-            t_dt=mpl.dates.num2date(t) #conversion to datetime object
-            t_utc=t_dt.astimezone(pytz.utc) #officially set timezone to UTC
-            times.append(t_utc)
-        return times        
-    else:
-        t_dt=mpl.dates.num2date(time_num) #conversion to datetime object
-        t_utc=t_dt.astimezone(pytz.utc) #officially set timezone to UTC
-        return t_utc
-    
-def datetime2TTtime(time_dt):
-    '''
-    converts datetime objects to MMS CDF times (nanoseconds,TT 2000)
-    '''
-    start_date=dt.datetime(2000,1,1,hour=11,minute=58,second=55,
-                                 microsecond=816000)
-    start_num=mpl.dates.date2num(start_date)
-    fudge_factor=5/60/60/24
-    
-    time_num=mpl.dates.date2num(time_dt)
-    time_days=time_num-start_num+fudge_factor
-    time_nanosecs=time_days*24*60*60*1e9
-    return time_nanosecs
     
     
 def get_cdf_var(filename,varnames):
@@ -439,9 +384,9 @@ def fluct_abt_avg(array):
 
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
-directory_ensurer(os.path.join(path,plot_out_directory))
-directory_ensurer(os.path.join(path,statistics_out_directory))
-directory_ensurer(os.path.join(path,scales_out_directory))
+mmsp.directory_ensurer(os.path.join(path,plot_out_directory))
+mmsp.directory_ensurer(os.path.join(path,statistics_out_directory))
+mmsp.directory_ensurer(os.path.join(path,scales_out_directory))
 
 #initialize variables that cannot be local to loop over MMS satellites
 MMS=[str(x) for x in range(1,5)]
@@ -537,10 +482,10 @@ for M in MMS:
             time_reg_j_tmp=np.array(tmp)
             j_curl=np.concatenate((j_curl,j_curl_tmp),axis=0)
             time_reg_jcurl=np.concatenate((time_reg_jcurl,time_reg_j_tmp))
-    TT_time_j=datetime2TTtime(time_reg_jcurl) #time to nanosecs for interpolating
-    time_reg_b=np.array(TTtime2datetime(TT_time_b)) #time as datetime obj np arr
-    time_reg_ni=np.array(TTtime2datetime(TT_time_ni))
-    time_reg_ne=np.array(TTtime2datetime(TT_time_ne))
+    TT_time_j=mt.datetime2TTtime(time_reg_jcurl) #time to nanosecs for interpolating
+    time_reg_b=np.array(mt.TTtime2datetime(TT_time_b)) #time as datetime obj np arr
+    time_reg_ni=np.array(mt.TTtime2datetime(TT_time_ni))
+    time_reg_ne=np.array(mt.TTtime2datetime(TT_time_ne))
     bz=b_field[:,2]
     jy=j_curl[:,1]
     vex_fpi=ve_fpi[:,0]
@@ -727,11 +672,11 @@ for M in MMS:
             
 #        tracker.print_diff() #for detecting memory leaks
 
-#        if (i==15): #debug option
-#            #check how long the code took to run
-#            end=time.time()
-#            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
-#            sys.exit("done with test cases")  
+        if (i==15): #debug option
+            #check how long the code took to run
+            end=time.time()
+            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
+            sys.exit("done with test cases")  
 
 """ STATISTICAL PART """
 
