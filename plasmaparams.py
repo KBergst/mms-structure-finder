@@ -14,8 +14,12 @@ import numpy as np
 def plasma_frequency(density,mass,zeff=1):
     '''
     defines the plasma frequency in rad/s given density and mass
-    mass expected in kg
-    density expected in cm^-3
+    Inputs:
+        mass- expected in kg
+        density- expected in cm^-3
+        zeff- the effective charge of the particle (1 if proton or electron)
+    Outputs:
+        freq- the plasma frequency in rad/s
     '''
     charge=zeff*const.e
     density_m3=density*1e6 #cm^-3 to m^-3
@@ -28,6 +32,10 @@ def inertial_length(freq):
     '''
     defines the inertial length in km given the plasma frequency in rad/s
     for either electrons or some ion species
+    Inputs:
+        freq- the plasma frequency in rad/s
+    Outputs:
+        d- the inertial length in km
     '''
     c_km_s=const.c/1e3 #m/s to km/s
     d=c_km_s/freq

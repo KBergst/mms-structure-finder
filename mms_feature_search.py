@@ -89,6 +89,12 @@ def get_cdf_var(filename,varnames):
     components) it will be necessary to format the data by reshaping the array
     from a 1D to a 2D array
     (may find workaround/better way later)
+    Inputs:
+        filename- string of the complete path to the specified CDF file
+        varnames- list of strings which contain the CDF variables that are
+            to be extracted
+    Outputs:
+        data- list of numpy arrays containing the desired variables' data
     """
     cdf_file=cdflib.CDF(filename,varnames)
     data=[]
@@ -100,7 +106,15 @@ def get_cdf_var(filename,varnames):
 def import_jdata(filename):
     '''
     Imports current density data outputted from the mms_curlometer script.
-    Format is time (string format),jx,jy,jz
+    Format is time (string format),jx,jy,jz (A)
+    Inputs:
+        filename- string of the complete path to the specified file
+    Outputs:
+        time- numpy array of datetime objects
+        j_data- numpy array of j data (jx,jy,jz) in microAmps
+    TODO: this is slow. Consider putting the jdata into CDF instead of text
+        form, or format the datetime outputs so that it isn't necessary to use
+        'parse', which I imagine is inefficient
     '''
     amps_2_uamps=1e6
     time_str=np.loadtxt(filename,delimiter=',',usecols=[0],dtype="str")
@@ -108,8 +122,8 @@ def import_jdata(filename):
     time_clean=[]
     for t in time_str:
         time_clean.append(parse(t))
-
-    return time_clean,j_data
+    time=np.array(time_clean)
+    return time,j_data
 
 def boxcar_avg(array):
     '''
@@ -455,8 +469,7 @@ for M in MMS:
         ve_fpi=np.concatenate((ve_fpi,ve_tmp))
         #read and process the j data
         if (M=='1'):
-            tmp,j_curl_tmp=import_jdata(j_file)
-            time_reg_j_tmp=np.array(tmp)
+            time_reg_j_tmp,j_curl_tmp=import_jdata(j_file)
             j_curl=np.concatenate((j_curl,j_curl_tmp),axis=0)
             time_reg_jcurl=np.concatenate((time_reg_jcurl,time_reg_j_tmp))
     TT_time_j=mt.datetime2TTtime(time_reg_jcurl) #time to nanosecs for interpolating
