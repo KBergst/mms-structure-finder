@@ -11,6 +11,7 @@ A current sheet / flux rope searcher for MMS burst data.
 #mms-specific in-house modules
 import mmsplotting as mmsp
 import mmstimes as mt
+import plasmaparams as pp
 
 #canned packages
 import numpy as np
@@ -140,30 +141,6 @@ def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):
         vex_list.append(vex_time)
 #        vex_list_novi.append(vex_time_novi)    
     return np.array(vex_list)
-
-def plasma_frequency(density,mass,zeff=1):
-    '''
-    defines the plasma frequency in rad/s given density and mass
-    mass expected in kg
-    density expected in cm^-3
-    '''
-    charge=zeff*const.e
-    density_m3=density*1e6 #cm^-3 to m^-3
-    freq=np.sqrt(density_m3*charge*charge/mass/const.epsilon_0)
-    print("plasma frequency")
-    print(freq)
-    return freq
-
-def inertial_length(freq):
-    '''
-    defines the inertial length in km given the plasma frequency in rad/s
-    for either electrons or some ion species
-    '''
-    c_km_s=const.c/1e3 #m/s to km/s
-    d=c_km_s/freq
-    print("inertial length")
-    print(d)
-    return d
 
 def section_maker(indices,maxes,mins,max_index,min_index=0):
     '''
@@ -496,10 +473,10 @@ for M in MMS:
     vex=electron_veloc_x(j_curl,TT_time_j,vi,ni,TT_time_ni,ne_nozero,
                          TT_time_ne)
     #calculate approximate electron and ion plasma frequencies and skin depths
-    we=plasma_frequency(ne_nozero,const.m_e)
-    wp=plasma_frequency(ni,const.m_p) #assuing all ions are protons (valid?)
-    de=inertial_length(we)
-    dp=inertial_length(wp)
+    we=pp.plasma_frequency(ne_nozero,const.m_e)
+    wp=pp.plasma_frequency(ni,const.m_p) #assuing all ions are protons (valid?)
+    de=pp.inertial_length(we)
+    dp=pp.inertial_length(wp)
     
     #locate crossings and their directions
     crossing_indices_bz=find_crossings(bz,time_reg_b)
