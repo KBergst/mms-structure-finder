@@ -61,61 +61,7 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
 E_CHARGE_mC=const.e*1e6 #electron charge in microcoulombs
 REPLOT=1 #chooses whether to regenerate the graphs or not
 
-def structure_hist_maker(data,structure_type,out,log=False):
-    '''
-    A specialized function for plotting histograms of structure sizes for 
-    a given structure type.
-    Inputs:
-        data-A dictionary with keys of the satellites and 
-            values of arrays of sizes.
-        structure_type- a string naming the kind of structure being plotted
-        out- A string containing the desired output location
-        log-True if want log scale, False if not, default is False
-    Outputs:
-        no output (void)
-        Writes the histograms to a file at the given output location
-    '''
-    #structure data
-    labels_tot=['Sizes of '+structure_type+' over all satellites', 'Size (km)',
-                'Number of instances']
-    labels_M=[]
-    for i,M in enumerate(list(data.keys())):
-        labels_M.append(['Sizes of '+structure_type+' for MMS'+M,
-               'Size (km)', 'Number of instances'])
-    
-    total_data=np.array([])
-    for sat in list(data.keys()):
-        total_data=np.append(total_data,data[sat])
-    
-    all_limits=[min(total_data),max(total_data)]
-    #plot everything    
-    mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
-    plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
-    gridsize=(5,1)
-    fig=plt.figure(figsize=(8,12)) #width,height
-    ax1=plt.subplot2grid(gridsize,(0,0))
-    ax2=plt.subplot2grid(gridsize,(1,0))   
-    ax3=plt.subplot2grid(gridsize,(2,0)) 
-    ax4=plt.subplot2grid(gridsize,(3,0))
-    ax5=plt.subplot2grid(gridsize,(4,0))
-    
-    mmsp.histogram_plotter(ax1,data['1'],labels_M[0],all_limits,n_bins=nbins,
-                      logscale=log)
-    mmsp.histogram_plotter(ax2,data['2'],labels_M[1],all_limits,n_bins=nbins,
-                      logscale=log)
-    mmsp.histogram_plotter(ax3,data['3'],labels_M[2],all_limits,n_bins=nbins,
-                      logscale=log)
-    mmsp.histogram_plotter(ax4,data['4'],labels_M[3],all_limits,n_bins=nbins,
-                      logscale=log)
-    mmsp.histogram_plotter(ax5,total_data,labels_tot,all_limits,n_bins=nbins,
-                      logscale=log)
-    
-    if log:
-        structure_type+='_log'
-        
-    fig.savefig(os.path.join(path,statistics_out_directory,"size_hist_"+ \
-                structure_type+".png"), bbox_inches='tight')
-    plt.close(fig='all')
+
     
 def directory_ensurer(directory):
     '''
@@ -798,15 +744,20 @@ fig_bar.savefig(os.path.join(path,statistics_out_directory,
                              "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')
 ''' make histograms of the x-lengths of all structures''' 
-structure_hist_maker(MMS_allstruct_sizes,"all structures",1)
-structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",1)
-structure_hist_maker(MMS_cs_sizes,"pull current sheets",1)
-structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",1)
+hist_path=os.path.join(path,statistics_out_directory)
+mmsp.structure_hist_maker(MMS_allstruct_sizes,"all structures",hist_path,nbins)
+mmsp.structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",hist_path,nbins)
+mmsp.structure_hist_maker(MMS_cs_sizes,"pull current sheets",hist_path,nbins)
+mmsp.structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",hist_path,
+                     nbins)
 ''' make histograms on log scale of the x-lengths of all structures '''
-structure_hist_maker(MMS_allstruct_sizes,"all structures",1,log=True)
-structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",1,log=True)
-structure_hist_maker(MMS_cs_sizes,"pull current sheets",1,log=True)
-structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",1,log=True)               
+mmsp.structure_hist_maker(MMS_allstruct_sizes,"all structures",hist_path,nbins,
+                     log=True)
+mmsp.structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",hist_path,nbins,log=True)
+mmsp.structure_hist_maker(MMS_cs_sizes,"pull current sheets",hist_path,nbins,
+                     log=True)
+mmsp.structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",hist_path,
+                     nbins,log=True)               
                 
 #check how long the code took to run
 end=time.time()

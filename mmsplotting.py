@@ -9,8 +9,10 @@ exists as module for the mms_feature_search.py main code
 """
 
 from matplotlib.ticker import LogLocator,LogFormatter #for plotting log hists
+import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
+import os
 
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
@@ -172,4 +174,60 @@ def bar_charter(ax,data,labels):
     ax.set_xticklabels(tuple(data[legends[0]].keys()))
     
     return data_bars
+
+def structure_hist_maker(data,structure_type,out,bins_num,log=False):
+    '''
+    A specialized function for plotting histograms of structure sizes for 
+    a given structure type.
+    Inputs:
+        data-A dictionary with keys of the satellites and 
+            values of arrays of sizes.
+        structure_type- a string naming the kind of structure being plotted
+        out- A string containing the desired output location
+        log-True if want log scale, False if not, default is False
+    Outputs:
+        no output (void)
+        Writes the histograms to a file at the given output location
+    '''
+    #structure data
+    labels_tot=['Sizes of '+structure_type+' over all satellites', 'Size (km)',
+                'Number of instances']
+    labels_M=[]
+    for i,M in enumerate(list(data.keys())):
+        labels_M.append(['Sizes of '+structure_type+' for MMS'+M,
+               'Size (km)', 'Number of instances'])
+    
+    total_data=np.array([])
+    for sat in list(data.keys()):
+        total_data=np.append(total_data,data[sat])
+    
+    all_limits=[min(total_data),max(total_data)]
+    #plot everything    
+    mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
+    plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
+    gridsize=(5,1)
+    fig=plt.figure(figsize=(8,12)) #width,height
+    ax1=plt.subplot2grid(gridsize,(0,0))
+    ax2=plt.subplot2grid(gridsize,(1,0))   
+    ax3=plt.subplot2grid(gridsize,(2,0)) 
+    ax4=plt.subplot2grid(gridsize,(3,0))
+    ax5=plt.subplot2grid(gridsize,(4,0))
+    
+    histogram_plotter(ax1,data['1'],labels_M[0],all_limits,n_bins=bins_num,
+                      logscale=log)
+    histogram_plotter(ax2,data['2'],labels_M[1],all_limits,n_bins=bins_num,
+                      logscale=log)
+    histogram_plotter(ax3,data['3'],labels_M[2],all_limits,n_bins=bins_num,
+                      logscale=log)
+    histogram_plotter(ax4,data['4'],labels_M[3],all_limits,n_bins=bins_num,
+                      logscale=log)
+    histogram_plotter(ax5,total_data,labels_tot,all_limits,n_bins=bins_num,
+                      logscale=log)
+    
+    if log:
+        structure_type+='_log'
+        
+    fig.savefig(os.path.join(out,"size_hist_"+ \
+                structure_type+".png"), bbox_inches='tight')
+    plt.close(fig='all')
 
