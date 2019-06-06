@@ -13,6 +13,7 @@ import mmsplotting as mmsp
 import mmstimes as mt
 import plasmaparams as pp
 import mmsdata as md
+import mmsarrays as ma
 
 #canned packages
 import numpy as np
@@ -60,16 +61,6 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
 #constants (probably shouldn't change)                                                  
 E_CHARGE_mC=const.e*1e6 #electron charge in microcoulombs
 REPLOT=1 #chooses whether to regenerate the graphs or not
-
-
-def boxcar_avg(array):
-    '''
-    Does boxcar averaging for an array over the number of data points
-    boxcar_width (global parameter above)
-    '''
-    weights=np.full(boxcar_width,1.0)/boxcar_width
-    boxcar_avg=np.convolve(array,weights,mode='same')
-    return boxcar_avg
 
 def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):
     '''
@@ -121,14 +112,6 @@ def larger_section_maker(window,max_index):
     min_window=max(window[0]-window_scale_factor*half_width,0)
     max_window=min(window[1]+window_scale_factor*half_width,max_index)
     return [min_window,max_window]
-
-def interval_mask(series,min_val,max_val):
-    '''
-    Takes numpy array data and returns a mask defined by given
-    minimum and maximum values
-    ''' 
-    mask=np.logical_and(series > min_val,series < max_val)
-    return mask    
 
 def find_crossings(array,timeseries):
     '''
@@ -247,19 +230,6 @@ def structure_extent(indices,times,directions,maxes,mins,max_index,
         times_list.append([times[index_min],times[index_max]])
     return size_list,times_list
 
-def find_avg_signs(array):
-    '''
-    Given an array of floats, determines the average sign of the data
-    as positive or negative
-    Also returns an indication of how good the calculation was
-    1 is good, 0 is godawful
-    ''' 
-    total=np.nansum(array) #treat NaNs as zero
-    abs_total=np.nansum(np.abs(array)) #treat NaNs as zero
-    sign=np.sign(total)
-    quality=abs(total/abs_total)
-    return sign,quality
-
 def structure_classification(crossing_direction,vex_direction,vex_quality,
                              jy_direction,jy_quality):
     '''
@@ -303,12 +273,6 @@ def structure_sizer(endtimes,velocs):
     
     return speed_avg*time_interval
 
-def fluct_abt_avg(array):
-    '''
-    Returns the array minus its average
-    To show how it fluctuates
-    '''
-    return array - np.average(array)
 
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
@@ -417,7 +381,7 @@ for M in MMS:
     jy=j_curl[:,1]
     vex_fpi=ve_fpi[:,0]
     vix=vi[:,0]
-    ne_smooth=boxcar_avg(ne) #smooth the ne data to avoid zeroes
+    ne_smooth=ma.boxcar_avg(ne,boxcar_width) #smooth the ne data to avoid zeroes
     ne_nozero=np.where(ne_smooth>ne_fudge_factor,ne_smooth,ne_fudge_factor)
     #roughly calculate electron velocity from curlometer
     vex=electron_veloc_x(j_curl,TT_time_j,vi,ni,TT_time_ni,ne_nozero,
@@ -451,17 +415,17 @@ for M in MMS:
         time_b_struct=time_reg_b[crossing_structs[i][0]:crossing_structs[i][1]]
         plot_limits=[time_b_cut[0],time_b_cut[-1]] #data section
         #slice ni,vi and ni timeseries
-        window_mask_ni=interval_mask(time_reg_ni,plot_limits[0],plot_limits[1])
-        struct_mask_ni=interval_mask(time_reg_ni,time_b_struct[0],
+        window_mask_ni=ma.interval_mask(time_reg_ni,plot_limits[0],plot_limits[1])
+        struct_mask_ni=ma.interval_mask(time_reg_ni,time_b_struct[0],
                                      time_b_struct[1])
         time_ni_cut=time_reg_ni[window_mask_ni]
         ni_cut=ni[window_mask_ni]
         ni_err_cut=ni_err[window_mask_ni]
         vix_cut=vix[window_mask_ni]
-        vix_fluct=fluct_abt_avg(vix_cut) #for fluctuation plot
+        vix_fluct=ma.fluct_abt_avg(vix_cut) #for fluctuation plot
         #slice ne and ne timeseries
-        window_mask_ne=interval_mask(time_reg_ne,plot_limits[0],plot_limits[1])
-        struct_mask_ne=interval_mask(time_reg_ne,time_b_struct[0],
+        window_mask_ne=ma.interval_mask(time_reg_ne,plot_limits[0],plot_limits[1])
+        struct_mask_ne=ma.interval_mask(time_reg_ne,time_b_struct[0],
                                      time_b_struct[1])
         time_ne_cut=time_reg_ne[window_mask_ne]
         ne_cut=ne[window_mask_ne]
@@ -470,9 +434,9 @@ for M in MMS:
         #slice ve from FPI timeseries
         vex_fpi_cut=vex_fpi[window_mask_ne]
         #slice j and j timeseries
-        window_mask_j=interval_mask(time_reg_jcurl,plot_limits[0],
+        window_mask_j=ma.interval_mask(time_reg_jcurl,plot_limits[0],
                                     plot_limits[1])
-        struct_mask_j=interval_mask(time_reg_jcurl,time_b_struct[0],
+        struct_mask_j=ma.interval_mask(time_reg_jcurl,time_b_struct[0],
                                     time_b_struct[-1])
         time_j_cut=time_reg_jcurl[window_mask_j] #for window
         jy_cut=jy[window_mask_j] #for window
@@ -481,7 +445,7 @@ for M in MMS:
         #slice ve curlometer timeseries (same as j)
         vex_cut=vex[window_mask_j] #for window
         vex_struct=vex[struct_mask_j] #for structure
-        vex_fluct=fluct_abt_avg(vex_struct) #for fluctuation plot
+        vex_fluct=ma.fluct_abt_avg(vex_struct) #for fluctuation plot
         #slice inertial lengths and average
         de_cut=de[window_mask_ne]
         de_cut_avg=np.average(de_cut)
@@ -490,8 +454,8 @@ for M in MMS:
         str_de_avg=f"{de_cut_avg:.1f}"  #string formatting
         str_dp_avg=f"{dp_cut_avg:.1f}"  #string formatting
         #determine signs of vex and jy
-        jy_sign,jy_qual=find_avg_signs(jy_struct)
-        vex_sign,vex_qual=find_avg_signs(vex_struct)
+        jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
+        vex_sign,vex_qual=ma.find_avg_signs(vex_struct)
         #determine crossing clasification and size and update counts:
         crossing_type,type_flag=structure_classification(crossing_signs_bz[i],
                                                          vex_sign,vex_qual,
@@ -599,11 +563,11 @@ for M in MMS:
             
 #        tracker.print_diff() #for detecting memory leaks
 
-        if (i==15): #debug option
-            #check how long the code took to run
-            end=time.time()
-            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
-            sys.exit("done with test cases")  
+#        if (i==15): #debug option
+#            #check how long the code took to run
+#            end=time.time()
+#            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
+#            sys.exit("done with test cases")  
 
 """ STATISTICAL PART """
 
