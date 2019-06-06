@@ -12,16 +12,15 @@ A current sheet / flux rope searcher for MMS burst data.
 import mmsplotting as mmsp
 import mmstimes as mt
 import plasmaparams as pp
+import mmsdata as md
 
 #canned packages
 import numpy as np
-import cdflib #NEEDS python 3.7 to run
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import datetime as dt
 import sys #for debugging
 #from pympler.tracker import SummaryTracker #for tracking memory usage
-from dateutil.parser import parse #for reading dates from file
 import scipy.interpolate as interp #maybe?? For finding crossings???
 import scipy.signal as signal #for extrema finding
 import scipy.constants as const
@@ -62,68 +61,6 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
 E_CHARGE_mC=const.e*1e6 #electron charge in microcoulombs
 REPLOT=1 #chooses whether to regenerate the graphs or not
 
-    
-def filenames_get(name_list_file):
-    '''
-    Pulls list of filenames I'm using from the file where they are stored.
-    Allows some flexibility
-    Inputs:
-        name_list_file- string which constains the full path to the file which
-            contains a list of the full filename paths needed
-    Outputs:
-        name_list- list of strings which contain the full path to 
-            each file
-    '''
-    name_list=[]
-    with open(name_list_file,"r") as name_file_obj: #read-only access
-         for line in name_file_obj:
-             line_clean =line.rstrip('\n') #removes newline chars from lines
-             name_list.append(line_clean)
-    return name_list 
-    
-    
-def get_cdf_var(filename,varnames):
-    """
-    pulls particular variables from a CDF
-    note: if variable has more than one set of data (E.g. b-field with x,y,z
-    components) it will be necessary to format the data by reshaping the array
-    from a 1D to a 2D array
-    (may find workaround/better way later)
-    Inputs:
-        filename- string of the complete path to the specified CDF file
-        varnames- list of strings which contain the CDF variables that are
-            to be extracted
-    Outputs:
-        data- list of numpy arrays containing the desired variables' data
-    """
-    cdf_file=cdflib.CDF(filename,varnames)
-    data=[]
-    for varname in varnames:
-        var_data=np.array(cdf_file.varget(varname))
-        data.append(var_data)
-    return data
-
-def import_jdata(filename):
-    '''
-    Imports current density data outputted from the mms_curlometer script.
-    Format is time (string format),jx,jy,jz (A)
-    Inputs:
-        filename- string of the complete path to the specified file
-    Outputs:
-        time- numpy array of datetime objects
-        j_data- numpy array of j data (jx,jy,jz) in microAmps
-    TODO: this is slow. Consider putting the jdata into CDF instead of text
-        form, or format the datetime outputs so that it isn't necessary to use
-        'parse', which I imagine is inefficient
-    '''
-    amps_2_uamps=1e6
-    time_str=np.loadtxt(filename,delimiter=',',usecols=[0],dtype="str")
-    j_data=np.loadtxt(filename,delimiter=',',usecols=range(1,4))*amps_2_uamps
-    time_clean=[]
-    for t in time_str:
-        time_clean.append(parse(t))
-    time=np.array(time_clean)
-    return time,j_data
 
 def boxcar_avg(array):
     '''
@@ -401,10 +338,10 @@ for M in MMS:
     MMS_cs_sizes[M]=np.array([])
     MMS_merging_cs_sizes[M]=np.array([])
     
-    b_list=filenames_get(os.path.join(path,data_dir,M,bfield_names_file))
-    dis_list=filenames_get(os.path.join(path,data_dir,M,dis_names_file))
-    des_list=filenames_get(os.path.join(path,data_dir,M,des_names_file))
-    j_list=filenames_get(os.path.join(path,j_names_file))
+    b_list=md.filenames_get(os.path.join(path,data_dir,M,bfield_names_file))
+    dis_list=md.filenames_get(os.path.join(path,data_dir,M,dis_names_file))
+    des_list=md.filenames_get(os.path.join(path,data_dir,M,des_names_file))
+    j_list=md.filenames_get(os.path.join(path,j_names_file))
 
     b_labels=['MMS'+M+' GSM B-field vs. time', 'Time','Bz GSM (nT)']
     j_labels=['MMS GSM curlometer current density vs. time','Time', 
@@ -440,13 +377,13 @@ for M in MMS:
         dis_file=os.path.join(path,data_dir,M,dis_stub)
         des_file=os.path.join(path,data_dir,M,des_stub)
         #read and process b-field data
-        TT_time_tmp,temp=get_cdf_var(b_file,['Epoch',
+        TT_time_tmp,temp=md.get_cdf_var(b_file,['Epoch',
                                              'mms'+M+'_fgm_b_gsm_brst_l2'])
         b_field_tmp=temp.reshape(temp.size//4,4) #// returns integer output
         b_field=np.concatenate((b_field,b_field_tmp),axis=0)
         TT_time_b=np.concatenate((TT_time_b,TT_time_tmp))
         #read and process the ni,vi data
-        TT_time_tmp,ni_tmp,ni_err_tmp,temp=get_cdf_var(dis_file,
+        TT_time_tmp,ni_tmp,ni_err_tmp,temp=md.get_cdf_var(dis_file,
                                        ['Epoch',
                                         'mms'+M+'_dis_numberdensity_brst',
                                         'mms'+M+'_dis_numberdensity_err_brst',
@@ -457,7 +394,7 @@ for M in MMS:
         vi_tmp=temp.reshape(temp.size//3,3)
         vi=np.concatenate((vi,vi_tmp))
         #read and process the ne and ve data
-        TT_time_tmp,ne_tmp,ne_err_tmp,temp=get_cdf_var(des_file,
+        TT_time_tmp,ne_tmp,ne_err_tmp,temp=md.get_cdf_var(des_file,
                                        ['Epoch',
                                         'mms'+M+'_des_numberdensity_brst',
                                         'mms'+M+'_des_numberdensity_err_brst',
@@ -469,7 +406,7 @@ for M in MMS:
         ve_fpi=np.concatenate((ve_fpi,ve_tmp))
         #read and process the j data
         if (M=='1'):
-            time_reg_j_tmp,j_curl_tmp=import_jdata(j_file)
+            time_reg_j_tmp,j_curl_tmp=md.import_jdata(j_file)
             j_curl=np.concatenate((j_curl,j_curl_tmp),axis=0)
             time_reg_jcurl=np.concatenate((time_reg_jcurl,time_reg_j_tmp))
     TT_time_j=mt.datetime2TTtime(time_reg_jcurl) #time to nanosecs for interpolating
