@@ -14,6 +14,7 @@ import mmstimes as mt
 import plasmaparams as pp
 import mmsdata as md
 import mmsarrays as ma
+import mmsstructs as ms
 
 #canned packages
 import numpy as np
@@ -22,8 +23,6 @@ import matplotlib as mpl
 import datetime as dt
 import sys #for debugging
 #from pympler.tracker import SummaryTracker #for tracking memory usage
-import scipy.interpolate as interp #maybe?? For finding crossings???
-import scipy.signal as signal #for extrema finding
 import scipy.constants as const
 import time #for checking code runspeed
 import os #for generalization to all systems
@@ -59,220 +58,7 @@ nbins=20 #number of bins for histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #constants (probably shouldn't change)                                                  
-E_CHARGE_mC=const.e*1e6 #electron charge in microcoulombs
 REPLOT=1 #chooses whether to regenerate the graphs or not
-
-def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):
-    '''
-    Used to calculate the x component of the electron velocity from curlometer 
-    current, ion velocity, and electron and ion densities.
-    Only invoked once, but I sectioned it off so it's easier to find/edit
-    '''
-    vi_interp=interp.interp1d(time_ni,vi[:,0],kind='linear',
-                              assume_sorted=True)
-    ni_interp=interp.interp1d(time_ni,ni, kind='linear',
-                              assume_sorted=True)
-    ne_interp=interp.interp1d(time_ne,ne, kind='linear',
-                              assume_sorted=True)
-    vex_list=[]
-#    vex_list_novi=[]
-    for n,ttime in enumerate(time_j):
-        vex_time=(vi_interp(ttime)*ni_interp(ttime)*1e9* \
-                  E_CHARGE_mC-j[n,0])/E_CHARGE_mC/(ne_interp(ttime))/1e9
-#        vex_time_novi=-j_curl[n,0]/E_CHARGE_mC/ne_interp(time)/1e9
-        vex_list.append(vex_time)
-#        vex_list_novi.append(vex_time_novi)    
-    return np.array(vex_list)
-
-def section_maker(indices,maxes,mins,max_index,min_index=0):
-    '''
-    Takes a tuple of indices of instances and makes a suitably-sized index
-    window around each instance using the surrounding extrema, for plotting.
-    Zoom in on the crossing itself
-    Possibility of missing larger structure
-    '''
-    window_list=[]
-    mins_arr=np.asarray(mins)[0,:] #tuple to numpy array for using searches
-    maxes_arr=np.asarray(maxes)[0,:]
-
-    for n,current_index in enumerate(indices):
-        min_idx=np.searchsorted(mins_arr,current_index,side='left')
-        max_idx=np.searchsorted(maxes_arr,current_index,side='left')
-        index_min=min(maxes_arr[max_idx-1],mins_arr[min_idx-1])-window_padding
-        index_max=max(maxes_arr[max_idx],mins_arr[min_idx])+window_padding
-        window_list.append([index_min,index_max])
-    return window_list
-
-def larger_section_maker(window,max_index):
-    '''
-    For select events, creates a window which is larger than the given window 
-    by the window scale factor
-    '''
-    half_width=int((window[1]-window[0])/2)
-    min_window=max(window[0]-window_scale_factor*half_width,0)
-    max_window=min(window[1]+window_scale_factor*half_width,max_index)
-    return [min_window,max_window]
-
-def find_crossings(array,timeseries):
-    '''
-    Finds indices of zero crossings for an array
-    
-    Also need to screen out crossings that happen in data gaps
-    Could modify to find crossings for any value- not useful at the moment
-    '''
-    arr_sign=np.sign(array)
-    arr_compare=abs(arr_sign[:-1]-arr_sign[1:]) #compares each element to next one
-    arr_crossing=(arr_compare == 2) #true if there is a crossing
-    indices_rough=np.nonzero(arr_crossing) #indices with crossings to their
-                                           #immediate right
-    cleaned_indices=[]
-    for n,index in enumerate(indices_rough[0]):
-        if (timeseries[index+1]-timeseries[index] < data_gap_time) :
-            cleaned_indices.append(index)
-    return cleaned_indices
-
-def find_crossing_signs(array,indices):
-    '''
-    Returns 1 if the crossing is from negative to positive 
-    Returns -1 if the crossing is from positive to negative
-    '''
-    shift=np.array(indices)
-    shift=shift+1
-    shifted_indices=list(shift)
-    return np.sign(array[shifted_indices]-array[indices])
-
-def find_maxes_mins(array,indices,directions):
-    '''
-    Given list of zero crossings, finds maxes or mins between crossings
-    Clean out crossings that don't attain at least 
-    the minimum allowed crossing height
-    Also make maxes/mins list for defining the size of the windows/structures
-    '''
-    cleaned_indices_arr=np.array(indices) #to np array for processing purposes
-    #find indices of mins and maxes for later window/structure processing
-    max_indices=signal.argrelmax(array,order=extrema_width)
-    min_indices=signal.argrelmin(array,order=extrema_width)
-    #filter out bad zero crossings using extrema heights
-    prev_exts=np.array([])
-    next_exts=np.array([])
-    for n,direc in enumerate(directions):
-        if direc > 0: #crossing from neg to pos
-            if (n < len(indices)-1) and n>0 : #index on each side
-                next_ext=np.amax(array[indices[n]:indices[n+1]])
-                prev_ext=np.amin(array[indices[n-1]:indices[n]])
-            elif (n < len(indices)-1): #first index
-                next_ext=np.amax(array[indices[n]:indices[n+1]])
-                prev_ext=np.amin(array[indices[n]-50:indices[n]])
-            else: #last index
-                next_ext=np.amax(array[indices[n]:indices[n]+50]) 
-                prev_ext=np.amin(array[indices[n-1]:indices[n]])
-        else: #crossing from pos to neg
-            if (n < len(indices)-1) and n>0 : #index on each side
-                next_ext=np.amin(array[indices[n]:indices[n+1]])
-                prev_ext=np.amax(array[indices[n-1]:indices[n]])
-            elif (n < len(indices)-1): #first index
-                next_ext=np.amin(array[indices[n]:indices[n+1]])
-                prev_ext=np.amax(array[indices[n]-50:indices[n]])
-            else: #last index
-                next_ext=np.amin(array[indices[n]:indices[n]+50]) 
-                prev_ext=np.amax(array[indices[n-1]:indices[n]])
-        prev_exts=np.append(prev_exts,[prev_ext]) #add to list
-        next_exts=np.append(next_exts,[next_ext]) #add to list
-
-    #Implement (complicated, inefficient) selection mechanism
-    #will probably need to be explained in words (or flowchart)
-    mask=np.array([],dtype=bool)
-    for n,(direc,prev_ext,next_ext) in enumerate(zip(directions,
-                                                   prev_exts,next_exts)):
-        if (abs(prev_ext)<min_crossing_height):
-            mask=np.append(mask,[False])
-        elif (abs(prev_ext)>=min_crossing_height and 
-            abs(next_ext)>=min_crossing_height):
-            mask=np.append(mask,[True])
-        else:
-            i=n+1
-            while i<len(directions):
-                if (abs(next_exts[i])>=min_crossing_height and 
-                    directions[i]==direc): #trend is continuing up or down across 0
-                    mask=np.append(mask,[True])
-                    break
-                elif (abs(next_exts[i])>=min_crossing_height): #up then down or vice versa
-                    mask=np.append(mask,[False])
-                    break
-                i+=1
-                
-    cleaned_indices=list(cleaned_indices_arr[mask]) #put back to list form
-    return cleaned_indices,directions[mask],max_indices,min_indices
-
-def structure_extent(indices,times,directions,maxes,mins,max_index,
-                     min_index=0):
-    '''
-    Like section_maker, but intended to determine the actual spatial extent
-    Of the structure (using the direction of the crossing and nearest max/min)
-    '''
-    size_list=[]
-    times_list=[]
-    mins_arr=np.asarray(mins)[0,:] #tuple to numpy array for using searches
-    maxes_arr=np.asarray(maxes)[0,:]
-
-    for n,current_index in enumerate(indices):
-        if directions[n]==1: #crossing from negative to positive
-            left_idx=np.searchsorted(mins_arr,current_index,side='left')-1
-            right_idx=np.searchsorted(maxes_arr,current_index,side='left')
-            index_min=mins_arr[left_idx]
-            index_max=maxes_arr[right_idx]
-        else: #crossing from positive to negative
-            left_idx=np.searchsorted(maxes_arr,current_index,side='left')-1
-            right_idx=np.searchsorted(mins_arr,current_index,side='left')  
-            index_min=maxes_arr[left_idx]
-            index_max=mins_arr[right_idx]
-        size_list.append([index_min,index_max])
-        times_list.append([times[index_min],times[index_max]])
-    return size_list,times_list
-
-def structure_classification(crossing_direction,vex_direction,vex_quality,
-                             jy_direction,jy_quality):
-    '''
-    Determines the tentative kind of structure using:
-    -The direction of the Bz crossing
-    -The sign of vex
-    -The sign of jy
-    If the determination of the signs of vex or jy are not of a certain quality
-    The classification reteurns 'uncertain'
-    '''
-    if((jy_quality < quality_min) or (vex_quality < quality_min)):
-        return "Uncertain- low quality",3
-    elif ((jy_direction>0) and (vex_direction>0) and (crossing_direction>0)):
-        return "Plasmoid moving earthward",0 
-    elif ((jy_direction>0) and (vex_direction<0) and (crossing_direction<0)):
-        return "Plasmoid moving tailward",0 
-    elif ((jy_direction>0) and (vex_direction>0) and (crossing_direction<0)):
-        return "Pull Current sheet moving earthward",1 
-    elif ((jy_direction>0) and (vex_direction<0) and (crossing_direction>0)):
-        return "Pull Current sheet moving tailward",1
-    elif ((jy_direction<0) and (vex_direction>0) and (crossing_direction<0)):
-        return "Push current sheet moving earthward",2
-    elif ((jy_direction<0) and (vex_direction<0) and (crossing_direction>0)):
-        return "Push current sheet moving tailward",2
-    else:
-        return "Uncertain- didn't match any given case",4
-    
-def structure_sizer(endtimes,velocs):
-    '''
-    Determines the approximate x- size of the structure using start and stop 
-    times and the velocity series of the structure (use curlometer ve for now)
-    endtimes: list of start and stop time
-    velocs: numpy array of velocities in km/s
-    
-    uses rms velocity to avoid complications of the velocity changing sign
-    
-    returns size in km
-    '''    
-    time_interval=(endtimes[1]-endtimes[0]).total_seconds()
-    speed_avg=abs(np.average(velocs))
-    
-    return speed_avg*time_interval
-
 
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
@@ -384,26 +170,28 @@ for M in MMS:
     ne_smooth=ma.boxcar_avg(ne,boxcar_width) #smooth the ne data to avoid zeroes
     ne_nozero=np.where(ne_smooth>ne_fudge_factor,ne_smooth,ne_fudge_factor)
     #roughly calculate electron velocity from curlometer
-    vex=electron_veloc_x(j_curl,TT_time_j,vi,ni,TT_time_ni,ne_nozero,
+    vex=pp.electron_veloc_x(j_curl,TT_time_j,vi,ni,TT_time_ni,ne_nozero,
                          TT_time_ne)
     #calculate approximate electron and ion plasma frequencies and skin depths
     we=pp.plasma_frequency(ne_nozero,const.m_e)
-    wp=pp.plasma_frequency(ni,const.m_p) #assuing all ions are protons (valid?)
+    wp=pp.plasma_frequency(ni,const.m_p) #assuming all ions are protons (valid?)
     de=pp.inertial_length(we)
     dp=pp.inertial_length(wp)
     
     #locate crossings and their directions
-    crossing_indices_bz=find_crossings(bz,time_reg_b)
-    crossing_signs_bz=find_crossing_signs(bz,crossing_indices_bz)
+    crossing_indices_bz=ms.find_crossings(bz,time_reg_b,data_gap_time)
+    crossing_signs_bz=ms.find_crossing_signs(bz,crossing_indices_bz)
     crossing_indices_bz,crossing_signs_bz,max_indices,min_indices= \
-                                                        find_maxes_mins(bz,
+                                                        ms.find_maxes_mins(bz,
                                                         crossing_indices_bz,
-                                                        crossing_signs_bz)
+                                                        crossing_signs_bz,
+                                                        extrema_width,
+                                                        min_crossing_height)
     crossing_times=time_reg_b[crossing_indices_bz]
     #section the data and define structural extents
-    crossing_windows=section_maker(crossing_indices_bz,max_indices,min_indices,
-                                   len(bz))
-    crossing_structs,crossing_struct_times=structure_extent(
+    crossing_windows=ms.section_maker(crossing_indices_bz,max_indices,min_indices,
+                                   window_padding,len(bz))
+    crossing_structs,crossing_struct_times=ms.structure_extent(
                                     crossing_indices_bz,time_reg_b,
                                     crossing_signs_bz,max_indices,min_indices,
                                     len(bz))
@@ -457,10 +245,11 @@ for M in MMS:
         jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
         vex_sign,vex_qual=ma.find_avg_signs(vex_struct)
         #determine crossing clasification and size and update counts:
-        crossing_type,type_flag=structure_classification(crossing_signs_bz[i],
+        crossing_type,type_flag=ms.structure_classification(crossing_signs_bz[i],
                                                          vex_sign,vex_qual,
-                                                         jy_sign,jy_qual)
-        crossing_size=structure_sizer([time_b_struct[0],time_b_struct[1]],
+                                                         jy_sign,jy_qual,
+                                                         quality_min)
+        crossing_size=ms.structure_sizer([time_b_struct[0],time_b_struct[1]],
                                       vex_struct)
         str_crossing_size=f"{crossing_size:.1f}"  #string formatting
         MMS_allstruct_sizes[M]=np.append(MMS_allstruct_sizes[M],
@@ -542,7 +331,9 @@ for M in MMS:
         
             if (i % 30 == 0):
                 ''' Plot larger window to check for larger structures '''
-                larger_window=larger_section_maker(crossing_windows[i],len(bz))   
+                larger_window=ms.larger_section_maker(crossing_windows[i],
+                                                   window_scale_factor,
+                                                   len(bz))   
                 time_b_large=time_reg_b[larger_window[0]:larger_window[1]]
                 plot_limits_large=[time_b_large[0],time_b_large[-1]]
                 bz_large=bz[larger_window[0]:larger_window[1]] #for window

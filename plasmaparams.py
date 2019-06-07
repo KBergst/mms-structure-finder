@@ -10,6 +10,8 @@ skin depth
 
 import scipy.constants as const
 import numpy as np
+import scipy.interpolate as interp #for interpolating to different times
+E_CHARGE_mC=const.e*1e6 #electron charge in microcoulombs
 
 def plasma_frequency(density,mass,zeff=1):
     '''
@@ -42,3 +44,33 @@ def inertial_length(freq):
     print("inertial length")
     print(d)
     return d
+
+def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):
+    '''
+    Used to calculate the x component of the electron velocity from curlometer 
+    current, ion velocity, and electron and ion densities.
+    Inputs:
+        j- array with the curlometer current in microAmps
+        time_j- the timeseries for the curlometer current array (nanosecs)
+        vi- the ion velocity in km/s
+        ni- the ion density in cm^-3
+        time_ni- the timeseries for both the ion density and velocity (nanosecs)
+        ne- the electron density in cm^-3
+        time_ne- the timeseries for electron density (nanosecs)
+    Outputs:
+        vex_arr- the calculated electron velocity as a numpy array in km/s
+    '''
+    vi_interp=interp.interp1d(time_ni,vi[:,0],kind='linear',
+                              assume_sorted=True)
+    ni_interp=interp.interp1d(time_ni,ni, kind='linear',
+                              assume_sorted=True)
+    ne_interp=interp.interp1d(time_ne,ne, kind='linear',
+                              assume_sorted=True)
+    vex_list=[]
+#    vex_list_novi=[]
+    for n,ttime in enumerate(time_j):
+        vex_time=(vi_interp(ttime)*ni_interp(ttime)*1e9* \
+                  E_CHARGE_mC-j[n,0])/E_CHARGE_mC/(ne_interp(ttime))/1e9
+        vex_list.append(vex_time) 
+    vex_arr=np.array(vex_list)
+    return vex_arr
