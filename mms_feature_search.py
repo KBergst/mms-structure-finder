@@ -60,6 +60,13 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
 #constants (probably shouldn't change)                                                  
 REPLOT=1 #chooses whether to regenerate the graphs or not
 
+###### CLASS DEFINITIONS ######################################################
+class Structure:
+    
+    #initializer
+    def __init__(self,kind,size):
+        self.kind=kind
+        self.size=size
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
 mmsp.directory_ensurer(os.path.join(path,plot_out_directory))
@@ -73,6 +80,7 @@ MMS_allstruct_sizes={}
 MMS_plasmoid_sizes={}
 MMS_cs_sizes={}
 MMS_merging_cs_sizes={}
+
 
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
@@ -163,6 +171,7 @@ for M in MMS:
     time_reg_b=np.array(mt.TTtime2datetime(TT_time_b)) #time as datetime obj np arr
     time_reg_ni=np.array(mt.TTtime2datetime(TT_time_ni))
     time_reg_ne=np.array(mt.TTtime2datetime(TT_time_ne))
+    by=b_field[:,1]
     bz=b_field[:,2]
     jy=j_curl[:,1]
     vex_fpi=ve_fpi[:,0]
@@ -197,9 +206,12 @@ for M in MMS:
                                     len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
+        '''Slicing and sectioning the various data arrays '''
         #slice b and b timeseries, set plotting limits
         time_b_cut=time_reg_b[crossing_windows[i][0]:crossing_windows[i][1]]
         bz_cut=bz[crossing_windows[i][0]:crossing_windows[i][1]] #for window
+        by_cut=by[crossing_windows[i][0]:crossing_windows[i][2]]
+        by_struct=by[crossing_structs[i][0]:crossing_structs[i][1]]
         time_b_struct=time_reg_b[crossing_structs[i][0]:crossing_structs[i][1]]
         plot_limits=[time_b_cut[0],time_b_cut[-1]] #data section
         #slice ni,vi and ni timeseries
@@ -241,9 +253,15 @@ for M in MMS:
         dp_cut_avg=np.average(dp_cut)
         str_de_avg=f"{de_cut_avg:.1f}"  #string formatting
         str_dp_avg=f"{dp_cut_avg:.1f}"  #string formatting
+        
+        '''Additional calculation of relevant information '''
         #determine signs of vex and jy
         jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
         vex_sign,vex_qual=ma.find_avg_signs(vex_struct)
+        #determine the average By over structure and window (guide field approx)
+        by_cut_avg=np.average(by_cut)
+        by_struct_avg=np.average(by_struct)
+        
         #determine crossing clasification and size and update counts:
         crossing_type,type_flag=ms.structure_classification(crossing_signs_bz[i],
                                                          vex_sign,vex_qual,
