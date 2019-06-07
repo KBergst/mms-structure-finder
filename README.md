@@ -27,7 +27,9 @@ Brief description of the different files:
     MMS<#>_crossing*.png- the output graphs for a single structure identified by mms_feature_search.py
   
   MMS- directory containing data from each MMS satellite in the time period of interest, organized in sub-directories by spacecraft
+  
     <obj>_file_location_key.txt- file containing a list of the filenames that contain <obj> data (e.g. magnetic field, des (electron moments), dis (ion moments))
+  
     *.cdf- the MMS CDF data in question
   
   key_for_curlometer.txt- text file containing the end text of the files needed for the mms_curlometer.py script. Works for all spacecraft.
