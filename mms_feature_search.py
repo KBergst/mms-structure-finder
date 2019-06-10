@@ -58,7 +58,7 @@ nbins=20 #number of bins for histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #constants (probably shouldn't change)                                                  
-REPLOT=1 #chooses whether to regenerate the graphs or not
+REPLOT=0 #chooses whether to regenerate the graphs or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -67,6 +67,7 @@ class Structure:
     def __init__(self,kind,size):
         self.kind=kind
         self.size=size
+        
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
 mmsp.directory_ensurer(os.path.join(path,plot_out_directory))
@@ -80,6 +81,15 @@ MMS_allstruct_sizes={}
 MMS_plasmoid_sizes={}
 MMS_cs_sizes={}
 MMS_merging_cs_sizes={}
+MMS_structures={} #for dictionary of all structures
+#for moving from the type_flag to a string categorization
+type_dict={
+        0:'plasmoid',
+        1:'pull cs',
+        2:'push cs',
+        3:'unclear case',
+        4:'matches none'
+        }
 
 
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
@@ -95,6 +105,7 @@ for M in MMS:
     MMS_plasmoid_sizes[M]=np.array([])
     MMS_cs_sizes[M]=np.array([])
     MMS_merging_cs_sizes[M]=np.array([])
+    MMS_structures[M]=np.array([])
     
     b_list=md.filenames_get(os.path.join(path,data_dir,M,bfield_names_file))
     dis_list=md.filenames_get(os.path.join(path,data_dir,M,dis_names_file))
@@ -210,7 +221,7 @@ for M in MMS:
         #slice b and b timeseries, set plotting limits
         time_b_cut=time_reg_b[crossing_windows[i][0]:crossing_windows[i][1]]
         bz_cut=bz[crossing_windows[i][0]:crossing_windows[i][1]] #for window
-        by_cut=by[crossing_windows[i][0]:crossing_windows[i][2]]
+        by_cut=by[crossing_windows[i][0]:crossing_windows[i][1]]
         by_struct=by[crossing_structs[i][0]:crossing_structs[i][1]]
         time_b_struct=time_reg_b[crossing_structs[i][0]:crossing_structs[i][1]]
         plot_limits=[time_b_cut[0],time_b_cut[-1]] #data section
@@ -287,7 +298,10 @@ for M in MMS:
             MMS_structure_counts[M]['unclear case'] += 1
         else: #type_flag ==4
             MMS_structure_counts[M]['matches none'] += 1
-            
+        
+        MMS_structures[M]=np.append(MMS_structures[M],
+                                      [Structure(type_dict[type_flag],
+                                                crossing_size)])
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
@@ -403,7 +417,7 @@ mmsp.structure_hist_maker(MMS_cs_sizes,"pull current sheets",hist_path,nbins,
                      log=True)
 mmsp.structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",hist_path,
                      nbins,log=True)               
-                
+        
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start)))    
@@ -413,8 +427,8 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
             
 
 #Urgent Priorities:
-#TODO: make rudimentary estimate of plasma frequencies and length scales
-       #plot in log scale?
+#TODO: change how output strings are done (using the .format method?)
+#TODO: make structures into a class and redo statistics using that
 #TODO: normalize by length scales? Maybe just for printouts
         #that would be more easily doable
 #TODO: change structure extent determination, possibly using a sliding scale?
@@ -428,10 +442,6 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
         #could help screen out waves?
         
 #Later Priorities:
-#TODO: clean up functions indo modules
-#TODO: make sure function documentation (inputs,outputs, etc.) is clear
-#TODO: pass all 'global' parameters to functions so they can be shoved in
-        #modules without issues
 #TODO: interpolate Bz to find exact time of zero crossing  for vertical line
 #TODO: capitalize all parameters
 #TODO: set maximum yrange of the velocity data to max of curlometer ve  
