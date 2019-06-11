@@ -68,6 +68,16 @@ class Structure:
         self.kind=kind
         self.size=size
         
+    #for pluralization in outputs
+    plurals={'size':'sizes',
+                  'kind':'kinds'
+                }
+    
+    #for getting units
+    units={ 'size':'km',
+                'kind':''
+            }
+        
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
 mmsp.directory_ensurer(os.path.join(path,plot_out_directory))

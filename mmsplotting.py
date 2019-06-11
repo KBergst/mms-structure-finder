@@ -213,16 +213,16 @@ def bar_charter(ax,data,labels):
     
     return data_bars
 
-def structure_hist_maker(data,attribute,out,bins_num,structure_key,
+def structure_hist_maker(data,attr,out,bins_num,structure_key,
                          log=False):
     '''
     A specialized function for plotting histograms of structure sizes for 
     a given structure type.
     Inputs:
         data-A dictionary with keys of the satellites and 
-            values of arrays of sizes.
-        attribute- a string naming the desired attribute being plotted 
-            (e.g. size)- MUST be a float!
+            values of arrays of structures.
+        attr- a string naming the desired attribute being plotted 
+            (e.g. size)- MUST be a float valued attribute!
         out- A string containing the desired output location
         structure_key- list of the different structure types, as strings
         log-True if want log scale, False if not, default is False
@@ -230,20 +230,28 @@ def structure_hist_maker(data,attribute,out,bins_num,structure_key,
         no output (void)
         Writes the histograms to a file at the given output location
     '''
-    
+    #extract information about the units and plurals of the desired attribute
+    struct_ex=data[list(data.keys())[0]][0] #returns first structure in array
+    attrs=struct_ex.plurals[attr]
+    attr_units=struct_ex.units[attr]
+    #make histograms
     for structure_type in structure_key:
         #structure data
-        labels_tot=['Sizes of '+structure_type+' over all satellites', 
-                    'Size (km)','Number of instances']
+        labels_tot=['{} of {} over all satellites'.format(attrs.capitalize(),
+                    structure_type),
+                    '{} ({})'.format(attr.capitalize(),attr_units),
+                    'Number of instances']
         labels_M=[]
         for i,M in enumerate(list(data.keys())):
-            labels_M.append(['Sizes of '+structure_type+' for MMS'+M,
-                   'Size (km)', 'Number of instances'])
+            labels_M.append(['{} of {} for MMS {}'.format(attrs.capitalize(),
+                             structure_type,M),
+                               '{} ({})'.format(attr.capitalize(),attr_units),
+                               'Number of instances'])
         
         total_data=np.array([])
         sat_data={} #for extracting data per satellite
         for sat in list(data.keys()):
-            tmp=np.vectorize(lambda x: getattr(x,attribute)) \
+            tmp=np.vectorize(lambda x: getattr(x,attr)) \
                                                         (data[sat])
             struct_mask=np.vectorize(lambda x: x.kind == structure_type) \
                                                         (data[sat])
@@ -276,20 +284,24 @@ def structure_hist_maker(data,attribute,out,bins_num,structure_key,
         if log:
             structure_type+='_log'
             
-        fig.savefig(os.path.join(out,"size_hist_"+ \
-                    urlify(structure_type)+".png"), bbox_inches='tight')
+        fig.savefig(os.path.join(out,"{}_hist_{}.png".format(attr,
+                                 urlify(structure_type))), bbox_inches='tight')
         plt.close(fig='all')
 
     ''' do overall plot '''
-    labels_tot=['Sizes of all structure types over all satellites', 
-                'Size (km)','Number of instances']
+    labels_tot=['{} of all structure types over all satellites' \
+                .format(attrs.capitalize()), 
+                '{} ({})'.format(attr.capitalize(),attr_units),
+                'Number of instances']
     labels_M=[]
     for i,M in enumerate(list(data.keys())):
-        labels_M.append(['Sizes of all structure types for MMS'+M,
-               'Size (km)', 'Number of instances'])
+        labels_M.append(['{} of all structure types for MMS {}'\
+                         .format(attrs.capitalize(),M),
+                '{} ({})'.format(attr.capitalize(),attr_units),
+                'Number of instances'])
     sat_data={} #for extracting data per satellite
     for sat in list(data.keys()):
-        sat_data[sat]=np.vectorize(lambda x: getattr(x,attribute)) \
+        sat_data[sat]=np.vectorize(lambda x: getattr(x,attr)) \
                                                     (data[sat])                                       
         total_data=np.append(total_data,sat_data[sat])
     all_limits=[min(total_data),max(total_data)]
@@ -318,7 +330,8 @@ def structure_hist_maker(data,attribute,out,bins_num,structure_key,
     if log:
         suffix='_log'
         
-    fig.savefig(os.path.join(out,"size_hist_all_structures"+suffix+".png"), 
+    fig.savefig(os.path.join(out,"{}_hist_all_structures{}.png".format(attr,
+                             suffix)), 
                 bbox_inches='tight')
     plt.close(fig='all')
     
