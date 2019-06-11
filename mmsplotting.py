@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import os
+import re #for url-ifying strings
+import textwrap #for fixing too-long labels that overlap
 
 def directory_ensurer(directory):
     '''
@@ -26,6 +28,27 @@ def directory_ensurer(directory):
         none
     '''
     os.makedirs(directory, exist_ok=True)
+    
+def urlify(string):
+    '''
+    Taken from a stack overflow post on how to replace whitespaces in strings
+    and generally make strings more url-compatible
+    https://stackoverflow.com/questions/1007481/how-do-i-replace-whitespaces-
+    with-underscore-and-vice-versa
+    Documentation of the 're' module:
+        https://docs.python.org/3/library/re.html
+    Inputs:
+        string- the string to be made compatible for URL purposes
+    Outputs:
+        url_string- string without special characters or white spaces
+    '''
+    # Remove all non-word characters (all non-alphanumeric)
+    s_numlett=re.sub(r"[^\w\s]", '', string)
+    
+    # Replace all whitespace with an underscore
+    s_url = re.sub(r"\s+", '_', s_numlett)
+    
+    return s_url
 
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
@@ -184,36 +207,91 @@ def bar_charter(ax,data,labels):
     ax.legend(edgecolor='black')
     ax.set(title=labels[0],xlabel=labels[1],ylabel=labels[2])
     ax.set_xticks(ind)
-    ax.set_xticklabels(tuple(data[legends[0]].keys()))
+
+    xlabels=['\n'.join(textwrap.wrap(l,10)) for l in data[legends[0]].keys()]
+    ax.set_xticklabels(xlabels)
     
     return data_bars
 
-def structure_hist_maker(data,structure_type,out,bins_num,log=False):
+def structure_hist_maker(data,attribute,out,bins_num,structure_key,
+                         log=False):
     '''
     A specialized function for plotting histograms of structure sizes for 
     a given structure type.
     Inputs:
         data-A dictionary with keys of the satellites and 
             values of arrays of sizes.
-        structure_type- a string naming the kind of structure being plotted
+        attribute- a string naming the desired attribute being plotted 
+            (e.g. size)- MUST be a float!
         out- A string containing the desired output location
+        structure_key- list of the different structure types, as strings
         log-True if want log scale, False if not, default is False
     Outputs:
         no output (void)
         Writes the histograms to a file at the given output location
     '''
-    #structure data
-    labels_tot=['Sizes of '+structure_type+' over all satellites', 'Size (km)',
-                'Number of instances']
+    
+    for structure_type in structure_key:
+        #structure data
+        labels_tot=['Sizes of '+structure_type+' over all satellites', 
+                    'Size (km)','Number of instances']
+        labels_M=[]
+        for i,M in enumerate(list(data.keys())):
+            labels_M.append(['Sizes of '+structure_type+' for MMS'+M,
+                   'Size (km)', 'Number of instances'])
+        
+        total_data=np.array([])
+        sat_data={} #for extracting data per satellite
+        for sat in list(data.keys()):
+            tmp=np.vectorize(lambda x: getattr(x,attribute)) \
+                                                        (data[sat])
+            struct_mask=np.vectorize(lambda x: x.kind == structure_type) \
+                                                        (data[sat])
+            sat_data[sat]= tmp[struct_mask]                                           
+            total_data=np.append(total_data,sat_data[sat])
+        
+        all_limits=[min(total_data),max(total_data)]
+        #plot everything    
+        mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
+        plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
+        gridsize=(5,1)
+        fig=plt.figure(figsize=(8,12)) #width,height
+        ax1=plt.subplot2grid(gridsize,(0,0))
+        ax2=plt.subplot2grid(gridsize,(1,0))   
+        ax3=plt.subplot2grid(gridsize,(2,0)) 
+        ax4=plt.subplot2grid(gridsize,(3,0))
+        ax5=plt.subplot2grid(gridsize,(4,0))
+        
+        histogram_plotter(ax1,sat_data['1'],labels_M[0],all_limits,
+                          n_bins=bins_num,logscale=log)
+        histogram_plotter(ax2,sat_data['2'],labels_M[1],all_limits,
+                          n_bins=bins_num,logscale=log)
+        histogram_plotter(ax3,sat_data['3'],labels_M[2],all_limits,
+                          n_bins=bins_num,logscale=log)
+        histogram_plotter(ax4,sat_data['4'],labels_M[3],all_limits,
+                          n_bins=bins_num,logscale=log)
+        histogram_plotter(ax5,total_data,labels_tot,all_limits,n_bins=bins_num,
+                          logscale=log)
+        
+        if log:
+            structure_type+='_log'
+            
+        fig.savefig(os.path.join(out,"size_hist_"+ \
+                    urlify(structure_type)+".png"), bbox_inches='tight')
+        plt.close(fig='all')
+
+    ''' do overall plot '''
+    labels_tot=['Sizes of all structure types over all satellites', 
+                'Size (km)','Number of instances']
     labels_M=[]
     for i,M in enumerate(list(data.keys())):
-        labels_M.append(['Sizes of '+structure_type+' for MMS'+M,
+        labels_M.append(['Sizes of all structure types for MMS'+M,
                'Size (km)', 'Number of instances'])
-    
-    total_data=np.array([])
+    sat_data={} #for extracting data per satellite
     for sat in list(data.keys()):
-        total_data=np.append(total_data,data[sat])
-    
+        sat_data[sat]=np.vectorize(lambda x: getattr(x,attribute)) \
+                                                    (data[sat])                                       
+        total_data=np.append(total_data,sat_data[sat])
     all_limits=[min(total_data),max(total_data)]
     #plot everything    
     mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
@@ -226,21 +304,21 @@ def structure_hist_maker(data,structure_type,out,bins_num,log=False):
     ax4=plt.subplot2grid(gridsize,(3,0))
     ax5=plt.subplot2grid(gridsize,(4,0))
     
-    histogram_plotter(ax1,data['1'],labels_M[0],all_limits,n_bins=bins_num,
-                      logscale=log)
-    histogram_plotter(ax2,data['2'],labels_M[1],all_limits,n_bins=bins_num,
-                      logscale=log)
-    histogram_plotter(ax3,data['3'],labels_M[2],all_limits,n_bins=bins_num,
-                      logscale=log)
-    histogram_plotter(ax4,data['4'],labels_M[3],all_limits,n_bins=bins_num,
-                      logscale=log)
+    histogram_plotter(ax1,sat_data['1'],labels_M[0],all_limits,
+                      n_bins=bins_num,logscale=log)
+    histogram_plotter(ax2,sat_data['2'],labels_M[1],all_limits,
+                      n_bins=bins_num,logscale=log)
+    histogram_plotter(ax3,sat_data['3'],labels_M[2],all_limits,
+                      n_bins=bins_num,logscale=log)
+    histogram_plotter(ax4,sat_data['4'],labels_M[3],all_limits,
+                      n_bins=bins_num,logscale=log)
     histogram_plotter(ax5,total_data,labels_tot,all_limits,n_bins=bins_num,
                       logscale=log)
-    
+    suffix=''
     if log:
-        structure_type+='_log'
+        suffix='_log'
         
-    fig.savefig(os.path.join(out,"size_hist_"+ \
-                structure_type+".png"), bbox_inches='tight')
+    fig.savefig(os.path.join(out,"size_hist_all_structures"+suffix+".png"), 
+                bbox_inches='tight')
     plt.close(fig='all')
-
+    

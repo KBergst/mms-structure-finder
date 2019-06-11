@@ -26,8 +26,6 @@ def plasma_frequency(density,mass,zeff=1):
     charge=zeff*const.e
     density_m3=density*1e6 #cm^-3 to m^-3
     freq=np.sqrt(density_m3*charge*charge/mass/const.epsilon_0)
-    print("plasma frequency")
-    print(freq)
     return freq
 
 def inertial_length(freq):
@@ -41,8 +39,6 @@ def inertial_length(freq):
     '''
     c_km_s=const.c/1e3 #m/s to km/s
     d=c_km_s/freq
-    print("inertial length")
-    print(d)
     return d
 
 def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):

@@ -77,17 +77,13 @@ mmsp.directory_ensurer(os.path.join(path,scales_out_directory))
 #initialize variables that cannot be local to loop over MMS satellites
 MMS=[str(x) for x in range(1,5)]
 MMS_structure_counts={} #dictionary for counts of each structure type
-MMS_allstruct_sizes={}
-MMS_plasmoid_sizes={}
-MMS_cs_sizes={}
-MMS_merging_cs_sizes={}
 MMS_structures={} #for dictionary of all structures
 #for moving from the type_flag to a string categorization
 type_dict={
-        0:'plasmoid',
-        1:'pull cs',
-        2:'push cs',
-        3:'unclear case',
+        0:'plasmoids',
+        1:'pull current sheets',
+        2:'push current sheets',
+        3:'unclear cases',
         4:'matches none'
         }
 
@@ -97,14 +93,10 @@ time_reg_jcurl=np.array([])
 
 #repeating for each satellite
 for M in MMS:
-    MMS_structure_counts[M]={'plasmoid': 0,'pull cs': 0,
-                             'push cs': 0,
-                             'unclear case': 0,
-                             'matches none': 0}
-    MMS_allstruct_sizes[M]=np.array([])
-    MMS_plasmoid_sizes[M]=np.array([])
-    MMS_cs_sizes[M]=np.array([])
-    MMS_merging_cs_sizes[M]=np.array([])
+    MMS_structure_counts[M]={type_dict[0]: 0,type_dict[1]: 0,
+                             type_dict[2]: 0,
+                             type_dict[3]: 0,
+                             type_dict[4]: 0}
     MMS_structures[M]=np.array([])
     
     b_list=md.filenames_get(os.path.join(path,data_dir,M,bfield_names_file))
@@ -281,23 +273,7 @@ for M in MMS:
         crossing_size=ms.structure_sizer([time_b_struct[0],time_b_struct[1]],
                                       vex_struct)
         str_crossing_size=f"{crossing_size:.1f}"  #string formatting
-        MMS_allstruct_sizes[M]=np.append(MMS_allstruct_sizes[M],
-                                         [crossing_size])
-        if (type_flag == 0):
-            MMS_structure_counts[M]['plasmoid'] += 1
-            MMS_plasmoid_sizes[M]=np.append(MMS_plasmoid_sizes[M],
-                                            [crossing_size])
-        elif (type_flag == 1):
-            MMS_structure_counts[M]['pull cs'] += 1
-            MMS_cs_sizes[M]=np.append(MMS_cs_sizes[M],[crossing_size])
-        elif (type_flag == 2):
-            MMS_structure_counts[M]['push cs'] += 1
-            MMS_merging_cs_sizes[M]=np.append(MMS_merging_cs_sizes[M],
-                                              [crossing_size])
-        elif (type_flag == 3):
-            MMS_structure_counts[M]['unclear case'] += 1
-        else: #type_flag ==4
-            MMS_structure_counts[M]['matches none'] += 1
+        MMS_structure_counts[M][type_dict[type_flag]] += 1
         
         MMS_structures[M]=np.append(MMS_structures[M],
                                       [Structure(type_dict[type_flag],
@@ -402,21 +378,14 @@ mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
 fig_bar.savefig(os.path.join(path,statistics_out_directory,
                              "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')
-''' make histograms of the x-lengths of all structures''' 
+
 hist_path=os.path.join(path,statistics_out_directory)
-mmsp.structure_hist_maker(MMS_allstruct_sizes,"all structures",hist_path,nbins)
-mmsp.structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",hist_path,nbins)
-mmsp.structure_hist_maker(MMS_cs_sizes,"pull current sheets",hist_path,nbins)
-mmsp.structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",hist_path,
-                     nbins)
-''' make histograms on log scale of the x-lengths of all structures '''
-mmsp.structure_hist_maker(MMS_allstruct_sizes,"all structures",hist_path,nbins,
-                     log=True)
-mmsp.structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",hist_path,nbins,log=True)
-mmsp.structure_hist_maker(MMS_cs_sizes,"pull current sheets",hist_path,nbins,
-                     log=True)
-mmsp.structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",hist_path,
-                     nbins,log=True)               
+''' make histograms of the x-lengths of all structures''' 
+structure_kinds=type_dict.values()
+mmsp.structure_hist_maker(MMS_structures,"size",hist_path,nbins,
+                          structure_kinds)   
+mmsp.structure_hist_maker(MMS_structures,"size",hist_path,nbins,
+                          structure_kinds, log=True)              
         
 #check how long the code took to run
 end=time.time()
@@ -428,7 +397,6 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
 
 #Urgent Priorities:
 #TODO: change how output strings are done (using the .format method?)
-#TODO: make structures into a class and redo statistics using that
 #TODO: normalize by length scales? Maybe just for printouts
         #that would be more easily doable
 #TODO: change structure extent determination, possibly using a sliding scale?
