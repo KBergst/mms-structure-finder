@@ -40,9 +40,12 @@ curlometer_dir="Curlometer_data"
 j_names_file=os.path.join(curlometer_dir,"curlometer_files.txt")
 plot_out_directory=r"feature_search"
 plot_out_name=r"Crossing"
-statistics_out_directory=os.path.join(plot_out_directory,"statistics")
-scales_out_directory=os.path.join(plot_out_directory,
+timeseries_out_directory=os.path.join(path,plot_out_directory)
+statistics_out_directory=os.path.join(path,plot_out_directory,"statistics")
+scales_out_directory=os.path.join(path,plot_out_directory,
                                   "structure_scale_comparisons")
+hists_out_directory=os.path.join(statistics_out_directory,"hists")
+scatters_out_directory=os.path.join(statistics_out_directory,"scatters")
 
 #parameters (to fiddle with)
 boxcar_width=30 #number of points to boxcar average the electron density over
@@ -60,33 +63,62 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
 #constants (probably shouldn't change)                                                  
 REPLOT=1 #chooses whether to regenerate the graphs or not
 
+###### CLASS DEFINITIONS ######################################################
+class Structure:
+    
+    #initializer
+    def __init__(self,kind,size,gf,rel_gf):
+        self.kind=kind
+        self.size=size
+        self.guide_field=gf
+        self.relative_guide_field=rel_gf
+        
+    #for pluralization in outputs
+    plurals={'size':'sizes',
+                  'kind':'kinds',
+                  'guide_field':'guide fields',
+                  'relative_guide_field':'relative guide fields'
+                }
+    
+    #for getting units
+    units={ 'size':'km',
+                'kind':'',
+                'guide_field':'nT',
+                'relative_guide_field':'unitless'
+            }
+        
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
-mmsp.directory_ensurer(os.path.join(path,plot_out_directory))
-mmsp.directory_ensurer(os.path.join(path,statistics_out_directory))
-mmsp.directory_ensurer(os.path.join(path,scales_out_directory))
+mmsp.directory_ensurer(timeseries_out_directory)
+mmsp.directory_ensurer(statistics_out_directory)
+mmsp.directory_ensurer(hists_out_directory)
+mmsp.directory_ensurer(scatters_out_directory)
+mmsp.directory_ensurer(scales_out_directory)
 
 #initialize variables that cannot be local to loop over MMS satellites
 MMS=[str(x) for x in range(1,5)]
 MMS_structure_counts={} #dictionary for counts of each structure type
-MMS_allstruct_sizes={}
-MMS_plasmoid_sizes={}
-MMS_cs_sizes={}
-MMS_merging_cs_sizes={}
+MMS_structures={} #for dictionary of all structures
+#for moving from the type_flag to a string categorization
+type_dict={
+        0:'plasmoids',
+        1:'pull current sheets',
+        2:'push current sheets',
+        3:'unclear cases',
+        4:'matches none'
+        }
+
 
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
 
 #repeating for each satellite
 for M in MMS:
-    MMS_structure_counts[M]={'plasmoid': 0,'pull cs': 0,
-                             'push cs': 0,
-                             'unclear case': 0,
-                             'matches none': 0}
-    MMS_allstruct_sizes[M]=np.array([])
-    MMS_plasmoid_sizes[M]=np.array([])
-    MMS_cs_sizes[M]=np.array([])
-    MMS_merging_cs_sizes[M]=np.array([])
+    MMS_structure_counts[M]={type_dict[0]: 0,type_dict[1]: 0,
+                             type_dict[2]: 0,
+                             type_dict[3]: 0,
+                             type_dict[4]: 0}
+    MMS_structures[M]=np.array([])
     
     b_list=md.filenames_get(os.path.join(path,data_dir,M,bfield_names_file))
     dis_list=md.filenames_get(os.path.join(path,data_dir,M,dis_names_file))
@@ -94,6 +126,7 @@ for M in MMS:
     j_list=md.filenames_get(os.path.join(path,j_names_file))
 
     b_labels=['MMS'+M+' GSM B-field vs. time', 'Time','Bz GSM (nT)']
+    b_legend=['Bz','By']
     j_labels=['MMS GSM curlometer current density vs. time','Time', 
               r'Jy GSM (microA/m^2)'  ]
     v_labels=['MMS GSM velocities vs. time','Time',
@@ -163,6 +196,7 @@ for M in MMS:
     time_reg_b=np.array(mt.TTtime2datetime(TT_time_b)) #time as datetime obj np arr
     time_reg_ni=np.array(mt.TTtime2datetime(TT_time_ni))
     time_reg_ne=np.array(mt.TTtime2datetime(TT_time_ne))
+    by=b_field[:,1]
     bz=b_field[:,2]
     jy=j_curl[:,1]
     vex_fpi=ve_fpi[:,0]
@@ -197,9 +231,12 @@ for M in MMS:
                                     len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
+        '''Slicing and sectioning the various data arrays '''
         #slice b and b timeseries, set plotting limits
         time_b_cut=time_reg_b[crossing_windows[i][0]:crossing_windows[i][1]]
         bz_cut=bz[crossing_windows[i][0]:crossing_windows[i][1]] #for window
+        by_cut=by[crossing_windows[i][0]:crossing_windows[i][1]]
+        by_struct=by[crossing_structs[i][0]:crossing_structs[i][1]]
         time_b_struct=time_reg_b[crossing_structs[i][0]:crossing_structs[i][1]]
         plot_limits=[time_b_cut[0],time_b_cut[-1]] #data section
         #slice ni,vi and ni timeseries
@@ -241,9 +278,22 @@ for M in MMS:
         dp_cut_avg=np.average(dp_cut)
         str_de_avg=f"{de_cut_avg:.1f}"  #string formatting
         str_dp_avg=f"{dp_cut_avg:.1f}"  #string formatting
+        
+        '''Additional calculation of relevant information '''
         #determine signs of vex and jy
         jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
         vex_sign,vex_qual=ma.find_avg_signs(vex_struct)
+        #determine the average By over structure and non-structure
+            #part of window(guide field approx)
+        window_mask_b=ma.interval_mask(time_reg_b,plot_limits[0],
+                                       plot_limits[1])
+        struct_mask_b=ma.interval_mask(time_reg_b,time_b_struct[0],
+                                       time_b_struct[1])
+        by_not_struct=by[np.logical_xor(window_mask_b,struct_mask_b)]
+        by_not_struct_avg=np.average(by_not_struct)
+        by_struct_avg=np.average(by_struct)
+        relative_by=by_struct_avg/by_not_struct_avg
+
         #determine crossing clasification and size and update counts:
         crossing_type,type_flag=ms.structure_classification(crossing_signs_bz[i],
                                                          vex_sign,vex_qual,
@@ -252,24 +302,12 @@ for M in MMS:
         crossing_size=ms.structure_sizer([time_b_struct[0],time_b_struct[1]],
                                       vex_struct)
         str_crossing_size=f"{crossing_size:.1f}"  #string formatting
-        MMS_allstruct_sizes[M]=np.append(MMS_allstruct_sizes[M],
-                                         [crossing_size])
-        if (type_flag == 0):
-            MMS_structure_counts[M]['plasmoid'] += 1
-            MMS_plasmoid_sizes[M]=np.append(MMS_plasmoid_sizes[M],
-                                            [crossing_size])
-        elif (type_flag == 1):
-            MMS_structure_counts[M]['pull cs'] += 1
-            MMS_cs_sizes[M]=np.append(MMS_cs_sizes[M],[crossing_size])
-        elif (type_flag == 2):
-            MMS_structure_counts[M]['push cs'] += 1
-            MMS_merging_cs_sizes[M]=np.append(MMS_merging_cs_sizes[M],
-                                              [crossing_size])
-        elif (type_flag == 3):
-            MMS_structure_counts[M]['unclear case'] += 1
-        else: #type_flag ==4
-            MMS_structure_counts[M]['matches none'] += 1
-            
+        MMS_structure_counts[M][type_dict[type_flag]] += 1
+        
+        MMS_structures[M]=np.append(MMS_structures[M],
+                                      [Structure(type_dict[type_flag],
+                                                crossing_size,by_struct_avg,
+                                                relative_by)])
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
@@ -295,7 +333,10 @@ for M in MMS:
             ax5=plt.subplot2grid(gridsize,(4,0))
             ax6=plt.subplot2grid(gridsize,(5,0))
             ax6.axis('off')
-            mmsp.tseries_plotter(fig,ax1,time_b_cut,bz_cut,b_labels,plot_limits) #plot B
+            mmsp.tseries_plotter(fig,ax1,time_b_cut,bz_cut,b_labels,plot_limits,
+                                 legend=b_legend[0]) #plot Bz
+            mmsp.tseries_plotter(fig,ax1,time_b_cut,by_cut,b_labels,plot_limits,
+                                 legend=b_legend[1]) #plot By           
             mmsp.tseries_plotter(fig,ax2,time_j_cut,jy_cut,j_labels,plot_limits) #plot jy
             mmsp.tseries_plotter(fig,ax3,time_ni_cut,ni_cut,n_labels,plot_limits,
                           legend=n_legend[0]) #plot ni
@@ -325,7 +366,7 @@ for M in MMS:
                      +crossing_size_label+crossing_de_label+crossing_dp_label,
                      wrap=True,transform=ax6.transAxes,fontsize=16,ha='center',
                      va='center')
-            fig.savefig(os.path.join(path,plot_out_directory,'MMS'+M+'_'+ \
+            fig.savefig(os.path.join(timeseries_out_directory,'MMS'+M+'_'+ \
                         plot_out_name+str(i)+".png"), bbox_inches='tight')
             plt.close(fig='all')
         
@@ -348,7 +389,7 @@ for M in MMS:
                                 b_labels,plot_limits_large) #plot B large
                 mmsp.line_maker([ax1,ax2],crossing_times[i],
                            crossing_struct_times[i])   
-                fig.savefig(os.path.join(path,scales_out_directory,'MMS'+M+'_'+ \
+                fig.savefig(os.path.join(scales_out_directory,'MMS'+M+'_'+ \
                             plot_out_name+str(i)+".png"), bbox_inches='tight')
                 plt.close(fig='all')
             
@@ -367,25 +408,23 @@ fig_bar,ax_bar=plt.subplots()
 mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
                                          'Type of structure',
                                          'Number of instances']) 
-fig_bar.savefig(os.path.join(path,statistics_out_directory,
+fig_bar.savefig(os.path.join(statistics_out_directory,
                              "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')
+
 ''' make histograms of the x-lengths of all structures''' 
-hist_path=os.path.join(path,statistics_out_directory)
-mmsp.structure_hist_maker(MMS_allstruct_sizes,"all structures",hist_path,nbins)
-mmsp.structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",hist_path,nbins)
-mmsp.structure_hist_maker(MMS_cs_sizes,"pull current sheets",hist_path,nbins)
-mmsp.structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",hist_path,
-                     nbins)
-''' make histograms on log scale of the x-lengths of all structures '''
-mmsp.structure_hist_maker(MMS_allstruct_sizes,"all structures",hist_path,nbins,
-                     log=True)
-mmsp.structure_hist_maker(MMS_plasmoid_sizes,"plasmoids",hist_path,nbins,log=True)
-mmsp.structure_hist_maker(MMS_cs_sizes,"pull current sheets",hist_path,nbins,
-                     log=True)
-mmsp.structure_hist_maker(MMS_merging_cs_sizes,"push current sheets",hist_path,
-                     nbins,log=True)               
-                
+structure_kinds=type_dict.values()
+mmsp.structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
+                          structure_kinds)   
+mmsp.structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
+                          structure_kinds, log=True)
+''' make histograms of the guide field strengths of all structures'''
+mmsp.structure_hist_maker(MMS_structures,'guide_field',hists_out_directory,
+                          nbins,structure_kinds)   
+''' make scatter plot of guide field strength vs structure size '''
+mmsp.structure_scatter_maker(MMS_structures,'size','guide_field',
+                             scatters_out_directory,structure_kinds)    
+      
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start)))    
@@ -395,8 +434,11 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
             
 
 #Urgent Priorities:
-#TODO: make rudimentary estimate of plasma frequencies and length scales
-       #plot in log scale?
+#TODO: fix guide field calculation
+        #need to better account for changing By in the relative guide field
+        #calculation- how to account for constant slope etc.
+        #might make its own specialized function in the mmsstructs module
+#TODO: change how output strings are done (using the .format method?)
 #TODO: normalize by length scales? Maybe just for printouts
         #that would be more easily doable
 #TODO: change structure extent determination, possibly using a sliding scale?
@@ -410,10 +452,6 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
         #could help screen out waves?
         
 #Later Priorities:
-#TODO: clean up functions indo modules
-#TODO: make sure function documentation (inputs,outputs, etc.) is clear
-#TODO: pass all 'global' parameters to functions so they can be shoved in
-        #modules without issues
 #TODO: interpolate Bz to find exact time of zero crossing  for vertical line
 #TODO: capitalize all parameters
 #TODO: set maximum yrange of the velocity data to max of curlometer ve  
