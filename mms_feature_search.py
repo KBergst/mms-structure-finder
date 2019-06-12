@@ -40,9 +40,12 @@ curlometer_dir="Curlometer_data"
 j_names_file=os.path.join(curlometer_dir,"curlometer_files.txt")
 plot_out_directory=r"feature_search"
 plot_out_name=r"Crossing"
-statistics_out_directory=os.path.join(plot_out_directory,"statistics")
-scales_out_directory=os.path.join(plot_out_directory,
+timeseries_out_directory=os.path.join(path,plot_out_directory)
+statistics_out_directory=os.path.join(path,plot_out_directory,"statistics")
+scales_out_directory=os.path.join(path,plot_out_directory,
                                   "structure_scale_comparisons")
+hists_out_directory=os.path.join(statistics_out_directory,"hists")
+scatters_out_directory=os.path.join(statistics_out_directory,"scatters")
 
 #parameters (to fiddle with)
 boxcar_width=30 #number of points to boxcar average the electron density over
@@ -58,31 +61,39 @@ nbins=20 #number of bins for histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #constants (probably shouldn't change)                                                  
-REPLOT=0 #chooses whether to regenerate the graphs or not
+REPLOT=1 #chooses whether to regenerate the graphs or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
     
     #initializer
-    def __init__(self,kind,size):
+    def __init__(self,kind,size,gf,rel_gf):
         self.kind=kind
         self.size=size
+        self.guide_field=gf
+        self.relative_guide_field=rel_gf
         
     #for pluralization in outputs
     plurals={'size':'sizes',
-                  'kind':'kinds'
+                  'kind':'kinds',
+                  'guide_field':'guide fields',
+                  'relative_guide_field':'relative guide fields'
                 }
     
     #for getting units
     units={ 'size':'km',
-                'kind':''
+                'kind':'',
+                'guide_field':'nT',
+                'relative_guide_field':'unitless'
             }
         
 ###### MAIN ###################################################################
 #ensuring that the needed output directories exist
-mmsp.directory_ensurer(os.path.join(path,plot_out_directory))
-mmsp.directory_ensurer(os.path.join(path,statistics_out_directory))
-mmsp.directory_ensurer(os.path.join(path,scales_out_directory))
+mmsp.directory_ensurer(timeseries_out_directory)
+mmsp.directory_ensurer(statistics_out_directory)
+mmsp.directory_ensurer(hists_out_directory)
+mmsp.directory_ensurer(scatters_out_directory)
+mmsp.directory_ensurer(scales_out_directory)
 
 #initialize variables that cannot be local to loop over MMS satellites
 MMS=[str(x) for x in range(1,5)]
@@ -115,6 +126,7 @@ for M in MMS:
     j_list=md.filenames_get(os.path.join(path,j_names_file))
 
     b_labels=['MMS'+M+' GSM B-field vs. time', 'Time','Bz GSM (nT)']
+    b_legend=['Bz','By']
     j_labels=['MMS GSM curlometer current density vs. time','Time', 
               r'Jy GSM (microA/m^2)'  ]
     v_labels=['MMS GSM velocities vs. time','Time',
@@ -271,10 +283,17 @@ for M in MMS:
         #determine signs of vex and jy
         jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
         vex_sign,vex_qual=ma.find_avg_signs(vex_struct)
-        #determine the average By over structure and window (guide field approx)
-        by_cut_avg=np.average(by_cut)
+        #determine the average By over structure and non-structure
+            #part of window(guide field approx)
+        window_mask_b=ma.interval_mask(time_reg_b,plot_limits[0],
+                                       plot_limits[1])
+        struct_mask_b=ma.interval_mask(time_reg_b,time_b_struct[0],
+                                       time_b_struct[1])
+        by_not_struct=by[np.logical_xor(window_mask_b,struct_mask_b)]
+        by_not_struct_avg=np.average(by_not_struct)
         by_struct_avg=np.average(by_struct)
-        
+        relative_by=by_struct_avg/by_not_struct_avg
+
         #determine crossing clasification and size and update counts:
         crossing_type,type_flag=ms.structure_classification(crossing_signs_bz[i],
                                                          vex_sign,vex_qual,
@@ -287,7 +306,8 @@ for M in MMS:
         
         MMS_structures[M]=np.append(MMS_structures[M],
                                       [Structure(type_dict[type_flag],
-                                                crossing_size)])
+                                                crossing_size,by_struct_avg,
+                                                relative_by)])
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
@@ -313,7 +333,10 @@ for M in MMS:
             ax5=plt.subplot2grid(gridsize,(4,0))
             ax6=plt.subplot2grid(gridsize,(5,0))
             ax6.axis('off')
-            mmsp.tseries_plotter(fig,ax1,time_b_cut,bz_cut,b_labels,plot_limits) #plot B
+            mmsp.tseries_plotter(fig,ax1,time_b_cut,bz_cut,b_labels,plot_limits,
+                                 legend=b_legend[0]) #plot Bz
+            mmsp.tseries_plotter(fig,ax1,time_b_cut,by_cut,b_labels,plot_limits,
+                                 legend=b_legend[1]) #plot By           
             mmsp.tseries_plotter(fig,ax2,time_j_cut,jy_cut,j_labels,plot_limits) #plot jy
             mmsp.tseries_plotter(fig,ax3,time_ni_cut,ni_cut,n_labels,plot_limits,
                           legend=n_legend[0]) #plot ni
@@ -343,7 +366,7 @@ for M in MMS:
                      +crossing_size_label+crossing_de_label+crossing_dp_label,
                      wrap=True,transform=ax6.transAxes,fontsize=16,ha='center',
                      va='center')
-            fig.savefig(os.path.join(path,plot_out_directory,'MMS'+M+'_'+ \
+            fig.savefig(os.path.join(timeseries_out_directory,'MMS'+M+'_'+ \
                         plot_out_name+str(i)+".png"), bbox_inches='tight')
             plt.close(fig='all')
         
@@ -366,7 +389,7 @@ for M in MMS:
                                 b_labels,plot_limits_large) #plot B large
                 mmsp.line_maker([ax1,ax2],crossing_times[i],
                            crossing_struct_times[i])   
-                fig.savefig(os.path.join(path,scales_out_directory,'MMS'+M+'_'+ \
+                fig.savefig(os.path.join(scales_out_directory,'MMS'+M+'_'+ \
                             plot_out_name+str(i)+".png"), bbox_inches='tight')
                 plt.close(fig='all')
             
@@ -385,18 +408,23 @@ fig_bar,ax_bar=plt.subplots()
 mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
                                          'Type of structure',
                                          'Number of instances']) 
-fig_bar.savefig(os.path.join(path,statistics_out_directory,
+fig_bar.savefig(os.path.join(statistics_out_directory,
                              "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')
 
-hist_path=os.path.join(path,statistics_out_directory)
 ''' make histograms of the x-lengths of all structures''' 
 structure_kinds=type_dict.values()
-mmsp.structure_hist_maker(MMS_structures,"size",hist_path,nbins,
+mmsp.structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
                           structure_kinds)   
-mmsp.structure_hist_maker(MMS_structures,"size",hist_path,nbins,
-                          structure_kinds, log=True)              
-        
+mmsp.structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
+                          structure_kinds, log=True)
+''' make histograms of the guide field strengths of all structures'''
+mmsp.structure_hist_maker(MMS_structures,'guide_field',hists_out_directory,
+                          nbins,structure_kinds)   
+''' make scatter plot of guide field strength vs structure size '''
+mmsp.structure_scatter_maker(MMS_structures,'size','guide_field',
+                             scatters_out_directory,structure_kinds)    
+      
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start)))    
@@ -406,6 +434,10 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
             
 
 #Urgent Priorities:
+#TODO: fix guide field calculation
+        #need to better account for changing By in the relative guide field
+        #calculation- how to account for constant slope etc.
+        #might make its own specialized function in the mmsstructs module
 #TODO: change how output strings are done (using the .format method?)
 #TODO: normalize by length scales? Maybe just for printouts
         #that would be more easily doable

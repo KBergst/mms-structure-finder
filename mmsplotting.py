@@ -50,6 +50,20 @@ def urlify(string):
     
     return s_url
 
+def textify(string):
+    '''
+    want to replace underscores with spaces for display purposes
+    Inputs:
+        string- the string (likely an attribute or other variable name) to
+            change to plain text
+    Outputs:
+        s_plaintext- the string in plain text for plot titles, etc.
+    '''
+    
+    #Replace all underscores and dashes with spaces
+    s_plaintext=re.sub(r"[_-]",' ', string)
+    return s_plaintext
+
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
     plotter function using matplotlib (mpl) objects
@@ -176,6 +190,30 @@ def hist_bins(limits,n_bins):
     
     return bins
 
+def scatter_plotter(ax,data1,data2,labels,marker_type=None,legend=None):
+    '''
+    Makes scatter plots using matplotlib objects
+    Inputs:
+        ax- matplotlib Axes object to be plotted on
+        data1- the x-axis variables
+        data2- the y-axis variables
+        labels- list of three strings, 
+            labels[0] is the plot title
+            labels[1] is the x label 
+            labels[2] is the y label
+        marker_type- string naming the marker style
+        legend- possible string for the legend of this data. Default is None
+    Outputs:
+        out- the ax.scatter instance used
+    '''
+    
+
+    ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
+    out = ax.scatter(data1, data2,marker=marker_type,label=legend)
+    ax.legend(edgecolor='black')
+    
+    return out
+    
 def bar_charter(ax,data,labels):
     '''
     Makes bar charts, for summary statistics
@@ -216,14 +254,15 @@ def bar_charter(ax,data,labels):
 def structure_hist_maker(data,attr,out,bins_num,structure_key,
                          log=False):
     '''
-    A specialized function for plotting histograms of structure sizes for 
-    a given structure type.
+    A specialized function for plotting histograms of various structure
+    attributes.
     Inputs:
         data-A dictionary with keys of the satellites and 
             values of arrays of structures.
         attr- a string naming the desired attribute being plotted 
             (e.g. size)- MUST be a float valued attribute!
         out- A string containing the desired output location
+        bins_num- number of bins desired for the histogram
         structure_key- list of the different structure types, as strings
         log-True if want log scale, False if not, default is False
     Outputs:
@@ -234,18 +273,21 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
     struct_ex=data[list(data.keys())[0]][0] #returns first structure in array
     attrs=struct_ex.plurals[attr]
     attr_units=struct_ex.units[attr]
+    attr_txt=textify(attr)
     #make histograms
     for structure_type in structure_key:
         #structure data
         labels_tot=['{} of {} over all satellites'.format(attrs.capitalize(),
                     structure_type),
-                    '{} ({})'.format(attr.capitalize(),attr_units),
+                    '{} ({})'.format(attr_txt.capitalize(),
+                                     attr_units),
                     'Number of instances']
         labels_M=[]
         for i,M in enumerate(list(data.keys())):
             labels_M.append(['{} of {} for MMS {}'.format(attrs.capitalize(),
                              structure_type,M),
-                               '{} ({})'.format(attr.capitalize(),attr_units),
+                               '{} ({})'.format(attr_txt.capitalize(),
+                                                attr_units),
                                'Number of instances'])
         
         total_data=np.array([])
@@ -291,13 +333,13 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
     ''' do overall plot '''
     labels_tot=['{} of all structure types over all satellites' \
                 .format(attrs.capitalize()), 
-                '{} ({})'.format(attr.capitalize(),attr_units),
+                '{} ({})'.format(attr_txt.capitalize(),attr_units),
                 'Number of instances']
     labels_M=[]
     for i,M in enumerate(list(data.keys())):
         labels_M.append(['{} of all structure types for MMS {}'\
                          .format(attrs.capitalize(),M),
-                '{} ({})'.format(attr.capitalize(),attr_units),
+                '{} ({})'.format(attr_txt.capitalize(),attr_units),
                 'Number of instances'])
     sat_data={} #for extracting data per satellite
     for sat in list(data.keys()):
@@ -335,3 +377,93 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                 bbox_inches='tight')
     plt.close(fig='all')
     
+def structure_scatter_maker(data,attr1,attr2,out,structure_key):
+    '''
+    A specialized function for plotting scatter plots of various structure
+    attributes against each other
+    Inputs:
+        data-A dictionary with keys of the satellites and 
+            values of arrays of structures.
+        attr1- a string naming the desired x-axis attribute being plotted 
+            (e.g. size)- MUST be a float valued attribute!
+        attr2- a string naming the desired y-axis attribute being plotted 
+            (e.g. size)- MUST be a float valued attribute!
+        out- A string containing the desired output location
+        structure_key- list of the different structure types, as strings
+    Outputs:
+        no output (void)
+        Writes the histograms to a file at the given output location
+    '''
+    #extract information about the units and plurals of the desired attributes
+    struct_ex=data[list(data.keys())[0]][0] #returns first structure in array
+    attr1s=struct_ex.plurals[attr1]
+    attr2s=struct_ex.plurals[attr2]
+    attr1_units=struct_ex.units[attr1]
+    attr2_units=struct_ex.units[attr2]
+    attr1_txt=textify(attr1)
+    attr2_txt=textify(attr2)
+    #make scatter plots
+    for structure_type in structure_key:
+        #structure data
+        labels_tot=['{} versus {} of {}' \
+                    .format(attr2s.capitalize(),attr1s.capitalize(),
+                            structure_type),
+                    '{} ({})'.format(attr1_txt.capitalize(),
+                                     attr1_units),
+                    '{} ({})'.format(attr2_txt.capitalize(),
+                                     attr2_units)]
+        
+        #get plot ready
+        mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
+        plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
+        fig,ax=plt.subplots(figsize=(6,6))
+        markers=['o','v','^','s'] #choose markers for each satellite
+        
+        sat_data1={} #for extracting data per satellite
+        sat_data2={}
+        for i,sat in enumerate(list(data.keys())):
+            tmp1=np.vectorize(lambda x: getattr(x,attr1)) \
+                                                        (data[sat])
+            tmp2=np.vectorize(lambda x: getattr(x,attr2)) \
+                                                        (data[sat])
+            struct_mask=np.vectorize(lambda x: x.kind == structure_type) \
+                                                        (data[sat])
+            sat_data1[sat]= tmp1[struct_mask]
+            sat_data2[sat]= tmp2[struct_mask]     
+            
+            scatter_plotter(ax,sat_data1[sat],sat_data2[sat],labels_tot,
+                            marker_type=markers[i],legend=sat)
+            
+        fig.savefig(os.path.join(out,"{}_{}_scatter_{}.png".format(attr1,attr2,
+                                 urlify(structure_type))), bbox_inches='tight')
+        plt.close(fig='all')
+
+    ''' do overall plot '''
+    labels_tot=['{} versus {} of all structure types' \
+                .format(attr2s.capitalize(),attr1s.capitalize()),
+                '{} ({})'.format(attr1_txt.capitalize(),
+                                 attr1_units),
+                '{} ({})'.format(attr2_txt.capitalize(),
+                                 attr2_units)]
+
+    #get plot ready
+    mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
+    plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
+    fig,ax=plt.subplots(figsize=(6,6))
+    markers=['o','v','^','s'] #choose markers for each satellite
+    
+    sat_data1={} #for extracting data per satellite
+    sat_data2={}
+    for i,sat in enumerate(list(data.keys())):
+        sat_data1[sat]=np.vectorize(lambda x: getattr(x,attr1)) \
+                                                    (data[sat])
+        sat_data2[sat]=np.vectorize(lambda x: getattr(x,attr2)) \
+                                                    (data[sat])
+                                                    
+        scatter_plotter(ax,sat_data1[sat],sat_data2[sat],labels_tot,
+                marker_type=markers[i],legend=sat)
+        
+    fig.savefig(os.path.join(out,"{}_{}_scatter_all_structures.png" \
+                             .format(attr1,attr2)),
+                bbox_inches='tight')
+    plt.close(fig='all')
