@@ -62,3 +62,29 @@ def datetime2TTtime(time_dt):
     time_days=time_num-start_num+fudge_factor
     time_nanosecs=time_days*24*60*60*1e9
     return time_nanosecs
+
+def datetime2str(time_dt):
+    '''
+    converts datetime objects to standardized strings of format
+        %Y-%m-%d %H:%M:%S.%f%z (see datetime info on what this is)
+    Inputs:
+        time_dt- time as a datetime object        
+    Outputs:
+        time_str= time as a string
+    '''
+    time_str=time_dt.strftime("%Y-%m-%d %H:%M:%S.%f%z")
+    
+    return time_str
+
+def str2datetime(time_str):
+    '''
+    converts strings of format %Y-%m-%d %H:%M:%S.%f%z into datetime objects
+    
+    Inputs:
+        time_str- time as a string of the above format
+    Outputs:
+        time_dt- time as a datetime object
+    '''
+    time_dt=dt.datetime.strptime(time_str,'%Y-%m-%d %H:%M:%S.%f%z')
+    
+    return time_dt    

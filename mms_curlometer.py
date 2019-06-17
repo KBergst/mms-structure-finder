@@ -1,16 +1,19 @@
 #full_curlometer.py code adapted for use with MMS CDF files
-import sys #for stopping while debugging
+#import sys #for stopping while debugging
 import numpy as np  # for matrix calculations
 import math # for pi and sqrt
-import glob # for sensible listdir()
+#import glob # for sensible listdir()
 import cdflib #for importing cdf files
 from copy import deepcopy # for obtaining variables in CEF files
-import matplotlib.pyplot as plt # for plotting
+#import matplotlib.pyplot as plt # for plotting
 import datetime as dt # for dates
 from matplotlib import dates # for formatting axes
 import pytz #for my own time stuff
 import scipy.interpolate as interp #for interpolating to MMS1 timeseries
 import os #for generalization to all systems
+
+#user created modules:
+import mmstimes as mt
 
 # User-defined variables:
 
@@ -227,12 +230,11 @@ for file_num,file in enumerate(bfield_files):
                                       ('divBcurlB', float)])
     
     for i,t in enumerate(clean):
-    
         if len(clean[t]) == 4:
             onej = curlometer(clean[t]['MMS1'],clean[t]['MMS2'],
                              clean[t]['MMS3'],clean[t]['MMS4'])
     
-            Jave['time'][i] = t #KEPT IN NANOSECS!!!!!
+            Jave['time'][i] = t #in nanosecs
             Jave['Jx'][i] = onej[0][0]
             Jave['Jy'][i] = onej[0][1]
             Jave['Jz'][i] = onej[0][2]
@@ -250,9 +252,10 @@ for file_num,file in enumerate(bfield_files):
     
     with open(outfile+str(file_num)+".txt", 'w') as f:
         for j in Jave:
-            outstring = str(time_converter(j['time'])) + \
-            ', ' + str(j['Jx']) + ', ' + str(j['Jy']) + \
-            ', ' + str(j['Jz']) +', '+ str(j['divBcurlB'])+'\n'
+            t_dt=mt.TTtime2datetime(j['time'])
+            time_string=mt.datetime2str(t_dt)
+            outstring = "{},{},{},{},{}\n".format(time_string,j['Jx'],
+                         j['Jy'],j['Jz'],j['divBcurlB'])
             f.write(outstring)
 
 ''' Write out what the output files are to the output key file '''

@@ -62,7 +62,7 @@ nbins=40 #number of bins for the size histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
-REPLOT=1 #chooses whether to regenerate the graphs or not
+REPLOT=0 #chooses whether to regenerate the graphs or not
 DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################

@@ -7,8 +7,9 @@ Created on Wed Jun  5 14:02:42 2019
 module containing functions which will deal with reading data from files
 """
 import numpy as np
-from dateutil.parser import parse #for reading dates from file
 import cdflib #NEEDS python 3.7 to run
+
+import mmstimes as mt
 
 def filenames_get(name_list_file):
     '''
@@ -68,7 +69,8 @@ def import_jdata(filename):
     j_data=np.loadtxt(filename,delimiter=',',usecols=range(1,4))*amps_2_uamps
     time_clean=[]
     for t in time_str:
-        time_clean.append(parse(t))
+        time_dt=mt.str2datetime(t)
+        time_clean.append(time_dt)
     time=np.array(time_clean)
     return time,j_data
 
