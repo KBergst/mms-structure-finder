@@ -15,7 +15,56 @@ import numpy as np
 import os
 import re #for url-ifying strings
 import textwrap #for fixing too-long labels that overlap
+from scipy.optimize import curve_fit #for fitting histograms
 
+##### FITTING FNS #############################################################
+def fitfn_exp(x,a,b):
+    '''
+    fitting function (specifically for size histograms)
+    decaying exponential
+    fits for parameters a and b
+    Inputs/outputs fairly obvious
+    '''
+    exp_fn=a*np.exp(-b*x)
+    
+    return exp_fn
+
+def fitfn_pwr(x,a,b):
+    '''
+    fitting function (specifically for size histograms)
+    power law
+    fits for parameters a and b  
+    Inputs/outputs fairly obvious
+    '''
+    pwr_fn=a*x**b
+    
+    return pwr_fn
+
+def size_fitter(x,y,fitfn):
+    '''
+    wrapper for fitting the size histograms 
+    Inputs:
+        x- the independent variable data to be fit
+        y- the dependent variable data to be fit (same dimension as x)
+        fitfn- the fitting function to be used
+    Outputs:
+        x_smooth- the fit independent variables
+        y_smooth- the fit dependent variables
+        popt- the fit parameters
+    '''
+    #section the data for the fit- want the part above the max fitted for size
+    max_idx=np.argmax(y)
+    x_for_fit=x[max_idx:]
+    y_for_fit=y[max_idx:]
+    popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit)
+    fit_bdy=[x_for_fit[0],x_for_fit[-1]]
+    x_smooth=np.linspace(fit_bdy[0],fit_bdy[1],num=1000)
+    y_smooth=fitfn(x_smooth,*popt)
+    
+    return x_smooth,y_smooth,popt
+    
+    
+###### DIRECTORY MANAGEMENT FNS ###############################################
 def directory_ensurer(directory):
     '''
     Ensures that the directory specified by the given path exists
@@ -63,6 +112,25 @@ def textify(string):
     #Replace all underscores and dashes with spaces
     s_plaintext=re.sub(r"[_-]",' ', string)
     return s_plaintext
+
+##### PLOTTING FNS ############################################################
+def basic_plotter(ax,data1,data2,legend=None):
+    '''
+    plotter function using matplotlib (mpl) objects
+    For timeseries plots ONLY (may generalize in the future)
+    Times used are datetime objects
+    Inputs:
+        fig- the mpl Figure object used
+        ax- the mpl Axes object used
+        data1- the x-axis variables
+        data2- the y-axis variables
+        legend- possible string for the legend of this data. Default is None
+    Outputs:
+        out- the ax.plot instance used
+    '''
+    out = ax.plot(data1, data2,label=legend)
+    ax.legend(edgecolor='black')
+    return out
 
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
@@ -277,6 +345,7 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
     #make histograms
     for structure_type in structure_key:
         #structure data
+        outs=[]
         labels_tot=['{} of {} over all satellites'.format(attrs.capitalize(),
                     structure_type),
                     '{} ({})'.format(attr_txt.capitalize(),
@@ -312,17 +381,35 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
         ax4=plt.subplot2grid(gridsize,(3,0))
         ax5=plt.subplot2grid(gridsize,(4,0))
         
-        histogram_plotter(ax1,sat_data['1'],labels_M[0],all_limits,
-                          n_bins=bins_num,logscale=log)
-        histogram_plotter(ax2,sat_data['2'],labels_M[1],all_limits,
-                          n_bins=bins_num,logscale=log)
-        histogram_plotter(ax3,sat_data['3'],labels_M[2],all_limits,
-                          n_bins=bins_num,logscale=log)
-        histogram_plotter(ax4,sat_data['4'],labels_M[3],all_limits,
-                          n_bins=bins_num,logscale=log)
-        histogram_plotter(ax5,total_data,labels_tot,all_limits,n_bins=bins_num,
-                          logscale=log)
-        
+        outs.append(histogram_plotter(ax1,sat_data['1'],labels_M[0],all_limits,
+                          n_bins=bins_num,logscale=log))
+        outs.append(histogram_plotter(ax2,sat_data['2'],labels_M[1],all_limits,
+                          n_bins=bins_num,logscale=log))
+        outs.append(histogram_plotter(ax3,sat_data['3'],labels_M[2],all_limits,
+                          n_bins=bins_num,logscale=log))
+        outs.append(histogram_plotter(ax4,sat_data['4'],labels_M[3],all_limits,
+                          n_bins=bins_num,logscale=log))
+        outs.append(histogram_plotter(ax5,total_data,labels_tot,all_limits,
+                                      n_bins=bins_num,logscale=log))
+        axs=[ax1,ax2,ax3,ax4,ax5] #for doing the fits
+        if (attr == 'size' and (structure_type == 'plasmoids' \
+                                or structure_type == 'pull current sheets' \
+                                or structure_type == 'push current sheets')): #do fitting
+            arrays=[item[0] for item in outs]
+            bin_edges=[item[1] for item in outs]
+            for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
+                bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
+                                      for i in range(len(bins)-1)])
+                x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp)
+                x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr)
+                basic_plotter(axs[i],x_exp,y_exp,
+                              legend='Exponential fit ${} e^{{-{}x}}$' \
+                              .format(f"{params_exp[0]:.2f}",
+                                         f"{params_exp[1]:.2f}"))
+                basic_plotter(axs[i],x_pwr,y_pwr,
+                              legend='Power law fit ${} x^{{ {} }}$' \
+                              .format(f"{params_pwr[0]:.2f}",
+                                         f"{params_pwr[1]:.2f}")) 
         if log:
             structure_type+='_log'
             
@@ -331,6 +418,7 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
         plt.close(fig='all')
 
     ''' do overall plot '''
+    outs=[]
     labels_tot=['{} of all structure types over all satellites' \
                 .format(attrs.capitalize()), 
                 '{} ({})'.format(attr_txt.capitalize(),attr_units),
@@ -358,16 +446,35 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
     ax4=plt.subplot2grid(gridsize,(3,0))
     ax5=plt.subplot2grid(gridsize,(4,0))
     
-    histogram_plotter(ax1,sat_data['1'],labels_M[0],all_limits,
-                      n_bins=bins_num,logscale=log)
-    histogram_plotter(ax2,sat_data['2'],labels_M[1],all_limits,
-                      n_bins=bins_num,logscale=log)
-    histogram_plotter(ax3,sat_data['3'],labels_M[2],all_limits,
-                      n_bins=bins_num,logscale=log)
-    histogram_plotter(ax4,sat_data['4'],labels_M[3],all_limits,
-                      n_bins=bins_num,logscale=log)
-    histogram_plotter(ax5,total_data,labels_tot,all_limits,n_bins=bins_num,
-                      logscale=log)
+    outs.append(histogram_plotter(ax1,sat_data['1'],labels_M[0],all_limits,
+                      n_bins=bins_num,logscale=log))
+    outs.append(histogram_plotter(ax2,sat_data['2'],labels_M[1],all_limits,
+                      n_bins=bins_num,logscale=log))
+    outs.append(histogram_plotter(ax3,sat_data['3'],labels_M[2],all_limits,
+                      n_bins=bins_num,logscale=log))
+    outs.append(histogram_plotter(ax4,sat_data['4'],labels_M[3],all_limits,
+                      n_bins=bins_num,logscale=log))
+    outs.append(histogram_plotter(ax5,total_data,labels_tot,all_limits,n_bins=bins_num,
+                      logscale=log))
+    axs=[ax1,ax2,ax3,ax4,ax5] #for doing the fits
+    
+    if (attr == 'size'): #do fitting
+        arrays=[item[0] for item in outs]
+        bin_edges=[item[1] for item in outs]
+        for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
+            bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
+                                  for i in range(len(bins)-1)])
+            x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp)
+            x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr)
+            basic_plotter(axs[i],x_exp,y_exp,
+                          legend='Exponential fit ${} e^{{-{}x}}$' \
+                          .format(f"{params_exp[0]:.2f}",
+                                         f"{params_exp[1]:.2f}"))
+            basic_plotter(axs[i],x_pwr,y_pwr,
+                          legend='Power law fit ${} x^{{ {} }}$' \
+                          .format(f"{params_pwr[0]:.2f}",
+                                         f"{params_pwr[1]:.2f}")) 
+    
     suffix=''
     if log:
         suffix='_log'
