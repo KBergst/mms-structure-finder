@@ -67,3 +67,61 @@ def fluct_abt_avg(array):
     '''
     fluct=array - np.average(array)
     return fluct
+
+def basic_mva(array):
+    '''
+    Does a basic minimum-variance analysis step on array of 3-dimensional data
+        given.
+    Inputs:
+        array- array of data of shape (datlength,3)
+    Outputs:
+        eigenvals- array of the three eigenvalues from the analysis
+            ordered from largest to smallest
+        eigenvecs- list of the three eigenvectors (in array form)
+        angle_errs- vector of uncertainties of the angles between the direction
+            pairs: 01, 02, and 12.
+    '''
+    
+    avgs=np.average(array,axis=0) #averages each component
+    Mb=np.empty((3,3))
+    for i in range(3): #probably too slow, could be improved
+        for j in range(3):
+            Mb[i,j]=np.average(array[:,i]*array[:,j])-avgs[i]*avgs[j]
+            
+    #compute eigenvectors and values of Mb, and sort them by decreasing magnitude
+    tmp1,tmp2=np.linalg.eig(Mb) #column tmp2[:,i] is the eigenvector
+    idx=tmp1.argsort()[::-1] #default sort is small to big, so need to reverse
+    eigenvals=tmp1[idx]
+    eigenvecs=tmp2[:,idx]
+    
+    #find the statistical errors
+    angle_errs=stat_err_mva(eigenvals,array.shape[0])
+    
+    return eigenvals, eigenvecs, angle_errs
+    
+def stat_err_mva(eigenvals,M):
+    '''
+    Finds the statistical uncertainty associated with a particular mva 
+    calculation
+    used by the basic_mva function
+    Inputs:
+        eigenvals- array of the three eigenvalues from the analysis
+            ordered from largest to smallest
+        M- the number of data points the MVA is being done on
+    Outputs:
+        delt_phi- vector of uncertainties of the angles between the direction
+            pairs: 01, 02, and 12.
+    '''
+    coef=np.sqrt(eigenvals[2]/(M-1))
+    delt_phi01=coef*np.sqrt((eigenvals[0]+eigenvals[1]-eigenvals[2])/ \
+                            (eigenvals[0]-eigenvals[1])**2)
+    delt_phi02=coef*np.sqrt((eigenvals[0]+eigenvals[2]-eigenvals[2])/ \
+                            (eigenvals[0]-eigenvals[2])**2)    
+    delt_phi12=coef*np.sqrt((eigenvals[1]+eigenvals[2]-eigenvals[2])/ \
+                            (eigenvals[1]-eigenvals[2])**2)
+    
+    delt_phi=[delt_phi01,delt_phi02,delt_phi12]
+    
+    return delt_phi
+    
+    

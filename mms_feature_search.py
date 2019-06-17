@@ -51,40 +51,39 @@ scatters_out_directory=os.path.join(statistics_out_directory,"scatters")
 boxcar_width=30 #number of points to boxcar average the electron density over
 ne_fudge_factor=0.001 #small amount of density to add to avoid NaN velocities
 window_padding=20 #number of indices to add to each side of window
-extrema_width=20 #number of points to compare on each side to declare an extrema
+extrema_width=30 #number of points to compare on each side to declare an extrema
 min_width=15 #minimum number of points between crossings to "count"
 min_crossing_height=0.2 #expected nT error in region of interest as per documentation
 data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify 
                                                   #something as a data gap
 quality_min=0.5 #used in structure_classification, minimum accepted quality
-nbins=20 #number of bins for histograms
+nbins_small=20 #number of bins for log-scale histograms and other small hists
+nbins=40 #number of bins for the size histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
-#constants (probably shouldn't change)                                                  
+#To change behavior of code:                                           
 REPLOT=1 #chooses whether to regenerate the graphs or not
+DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
     
     #initializer
-    def __init__(self,kind,size,gf,rel_gf):
+    def __init__(self,kind,size,gf):
         self.kind=kind
         self.size=size
         self.guide_field=gf
-        self.relative_guide_field=rel_gf
         
     #for pluralization in outputs
     plurals={'size':'sizes',
                   'kind':'kinds',
                   'guide_field':'guide fields',
-                  'relative_guide_field':'relative guide fields'
                 }
     
     #for getting units
     units={ 'size':'km',
                 'kind':'',
                 'guide_field':'nT',
-                'relative_guide_field':'unitless'
             }
         
 ###### MAIN ###################################################################
@@ -125,8 +124,8 @@ for M in MMS:
     des_list=md.filenames_get(os.path.join(path,data_dir,M,des_names_file))
     j_list=md.filenames_get(os.path.join(path,j_names_file))
 
-    b_labels=['MMS'+M+' GSM B-field vs. time', 'Time','Bz GSM (nT)']
-    b_legend=['Bz','By']
+    b_labels=['MMS'+M+' GSM B-field vs. time', 'Time','B GSM (nT)']
+    b_legend=['By','Bz','Btot - BtotAvg']
     j_labels=['MMS GSM curlometer current density vs. time','Time', 
               r'Jy GSM (microA/m^2)'  ]
     v_labels=['MMS GSM velocities vs. time','Time',
@@ -196,7 +195,6 @@ for M in MMS:
     time_reg_b=np.array(mt.TTtime2datetime(TT_time_b)) #time as datetime obj np arr
     time_reg_ni=np.array(mt.TTtime2datetime(TT_time_ni))
     time_reg_ne=np.array(mt.TTtime2datetime(TT_time_ne))
-    by=b_field[:,1]
     bz=b_field[:,2]
     jy=j_curl[:,1]
     vex_fpi=ve_fpi[:,0]
@@ -234,9 +232,9 @@ for M in MMS:
         '''Slicing and sectioning the various data arrays '''
         #slice b and b timeseries, set plotting limits
         time_b_cut=time_reg_b[crossing_windows[i][0]:crossing_windows[i][1]]
-        bz_cut=bz[crossing_windows[i][0]:crossing_windows[i][1]] #for window
-        by_cut=by[crossing_windows[i][0]:crossing_windows[i][1]]
-        by_struct=by[crossing_structs[i][0]:crossing_structs[i][1]]
+        b_field_cut=b_field[crossing_windows[i][0]:crossing_windows[i][1],:]
+        by_struct=b_field[crossing_structs[i][0]:crossing_structs[i][1],1]
+        btot_fluct=ma.fluct_abt_avg(b_field_cut[:,3]) #fluctuations in total B-field
         time_b_struct=time_reg_b[crossing_structs[i][0]:crossing_structs[i][1]]
         plot_limits=[time_b_cut[0],time_b_cut[-1]] #data section
         #slice ni,vi and ni timeseries
@@ -289,10 +287,7 @@ for M in MMS:
                                        plot_limits[1])
         struct_mask_b=ma.interval_mask(time_reg_b,time_b_struct[0],
                                        time_b_struct[1])
-        by_not_struct=by[np.logical_xor(window_mask_b,struct_mask_b)]
-        by_not_struct_avg=np.average(by_not_struct)
         by_struct_avg=np.average(by_struct)
-        relative_by=by_struct_avg/by_not_struct_avg
 
         #determine crossing clasification and size and update counts:
         crossing_type,type_flag=ms.structure_classification(crossing_signs_bz[i],
@@ -307,7 +302,7 @@ for M in MMS:
         MMS_structures[M]=np.append(MMS_structures[M],
                                       [Structure(type_dict[type_flag],
                                                 crossing_size,by_struct_avg,
-                                                relative_by)])
+                                                )])
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
@@ -333,10 +328,12 @@ for M in MMS:
             ax5=plt.subplot2grid(gridsize,(4,0))
             ax6=plt.subplot2grid(gridsize,(5,0))
             ax6.axis('off')
-            mmsp.tseries_plotter(fig,ax1,time_b_cut,bz_cut,b_labels,plot_limits,
-                                 legend=b_legend[0]) #plot Bz
-            mmsp.tseries_plotter(fig,ax1,time_b_cut,by_cut,b_labels,plot_limits,
-                                 legend=b_legend[1]) #plot By           
+            mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,1],
+                                     b_labels,plot_limits,legend=b_legend[0]) #plot By  
+            mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,2],
+                                     b_labels,plot_limits,legend=b_legend[1]) #plot Bz
+            mmsp.tseries_plotter(fig,ax1,time_b_cut,btot_fluct,
+                                     b_labels,plot_limits,legend=b_legend[2]) #plot Btot-Btotavg            
             mmsp.tseries_plotter(fig,ax2,time_j_cut,jy_cut,j_labels,plot_limits) #plot jy
             mmsp.tseries_plotter(fig,ax3,time_ni_cut,ni_cut,n_labels,plot_limits,
                           legend=n_legend[0]) #plot ni
@@ -384,7 +381,8 @@ for M in MMS:
                 fig=plt.figure(figsize=(8,8)) #width,height
                 ax1=plt.subplot2grid(gridsize,(0,0))
                 ax2=plt.subplot2grid(gridsize,(1,0))   
-                mmsp.tseries_plotter(fig,ax1,time_b_cut,bz_cut,b_labels,plot_limits) #plot B
+                mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,2],
+                                     b_labels,plot_limits) #plot Bz
                 mmsp.tseries_plotter(fig,ax2,time_b_large,bz_large,
                                 b_labels,plot_limits_large) #plot B large
                 mmsp.line_maker([ax1,ax2],crossing_times[i],
@@ -395,11 +393,11 @@ for M in MMS:
             
 #        tracker.print_diff() #for detecting memory leaks
 
-#        if (i==15): #debug option
-#            #check how long the code took to run
-#            end=time.time()
-#            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
-#            sys.exit("done with test cases")  
+        if (i==15 and DEBUG): #debug option
+            #check how long the code took to run
+            end=time.time()
+            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
+            sys.exit("done with test cases")  
 
 """ STATISTICAL PART """
 
@@ -416,11 +414,11 @@ plt.close(fig='all')
 structure_kinds=type_dict.values()
 mmsp.structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
                           structure_kinds)   
-mmsp.structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
-                          structure_kinds, log=True)
+mmsp.structure_hist_maker(MMS_structures,"size",hists_out_directory,
+                          nbins_small,structure_kinds, log=True)
 ''' make histograms of the guide field strengths of all structures'''
 mmsp.structure_hist_maker(MMS_structures,'guide_field',hists_out_directory,
-                          nbins,structure_kinds)   
+                          nbins_small,structure_kinds)   
 ''' make scatter plot of guide field strength vs structure size '''
 mmsp.structure_scatter_maker(MMS_structures,'size','guide_field',
                              scatters_out_directory,structure_kinds)    
