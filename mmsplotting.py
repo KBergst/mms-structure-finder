@@ -114,7 +114,7 @@ def textify(string):
     return s_plaintext
 
 ##### PLOTTING FNS ############################################################
-def basic_plotter(ax,data1,data2,legend=None,labels=None,yerrors=None):
+def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,yerrors=None):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -140,6 +140,8 @@ def basic_plotter(ax,data1,data2,legend=None,labels=None,yerrors=None):
         ax.errorbar(data1,data2,yerr=yerrors,fmt='.',capsize=3)
     if not (labels is None): #set labels, if they exist
         ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
+    if equalax is True:
+        ax.set_aspect('equal')
     ax.legend(edgecolor='black')
     return out
 
@@ -171,7 +173,9 @@ def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     ax.tick_params(axis='both',length=6,width=2, direction='in' )
     ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
     out = ax.plot(data1, data2,label=legend)
-    ax.legend(edgecolor='black')
+    if not (legend is None):
+        ax.legend(edgecolor='black')
+        
     return out
 
 def line_maker(axes,time,edges):

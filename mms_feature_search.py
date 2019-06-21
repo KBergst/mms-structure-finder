@@ -148,6 +148,10 @@ for M in MMS:
                          'Number of points in nest','Displacement (radians)']
     nested_mva_labels_12=['Angular displacement of nested MVA in the 1-2 plane',
                          'Number of points in nest','Displacement (radians)']
+    hodogram_label_01=['Magnetic field hodogram max-intermediate directions',
+                       'intermediate variance B','maximum variance B']
+    hodogram_label_02=['Magnetic field hodogram max-min directions',
+                       'minimum variance B','maximum variance B']
     
     
     b_field=np.transpose(np.array([[],[],[],[]])) #for all B field data
@@ -306,8 +310,8 @@ for M in MMS:
             mva_good=True
         else:
             mva_good=False
-        print(mva_good)
-              
+            
+        b_mva=ma.coord_transformation(b_field_struct[:,0:3],b_eigenvecs)      
         '''Additional calculation of relevant information '''
         #determine signs of vex and jy
         jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
@@ -352,17 +356,19 @@ for M in MMS:
             #plot everything
             mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
             plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
-            gridsize=(6,2)
+            gridsize=(6,4)
             fig=plt.figure(figsize=(16,15)) #width,height
-            ax1=plt.subplot2grid(gridsize,(0,0))
-            ax2=plt.subplot2grid(gridsize,(1,0))   
-            ax3=plt.subplot2grid(gridsize,(2,0)) 
-            ax4=plt.subplot2grid(gridsize,(3,0))
-            ax5=plt.subplot2grid(gridsize,(4,0))
-            ax6=plt.subplot2grid(gridsize,(5,0))
+            ax1=plt.subplot2grid(gridsize,(0,0),colspan=2)
+            ax2=plt.subplot2grid(gridsize,(1,0),colspan=2)   
+            ax3=plt.subplot2grid(gridsize,(2,0),colspan=2) 
+            ax4=plt.subplot2grid(gridsize,(3,0),colspan=2)
+            ax5=plt.subplot2grid(gridsize,(4,0),colspan=2)
+            ax6=plt.subplot2grid(gridsize,(5,0),colspan=2)
             ax6.axis('off')
-            ax7=plt.subplot2grid(gridsize,(0,1))
-            ax8=plt.subplot2grid(gridsize,(1,1))
+            ax7=plt.subplot2grid(gridsize,(0,2),colspan=2)
+            ax8=plt.subplot2grid(gridsize,(1,2),colspan=2)
+            ax9=plt.subplot2grid(gridsize,(2,2))
+            ax10=plt.subplot2grid(gridsize,(2,3))
             mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,1],
                                      b_labels,plot_limits,legend=b_legend[0]) #plot By  
             mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,2],
@@ -395,7 +401,11 @@ for M in MMS:
                                yerrors=b_angle_errs[:,1])
             mmsp.basic_plotter(ax8,nest_points_num,angle_12_deviation,
                                labels=nested_mva_labels_12,
-                               yerrors=b_angle_errs[:,2])            
+                               yerrors=b_angle_errs[:,2])  
+            mmsp.basic_plotter(ax9,b_mva[:,1],b_mva[:,0],equalax=True,
+                               labels=['Hodogram 1','','']) 
+            mmsp.basic_plotter(ax10,b_mva[:,2],b_mva[:,0],equalax=True,
+                               labels=['Hodogram 2','','']) 
             #add horizontal and vertical lines to plot (crossing + extent)
             mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],crossing_times[i],
                        crossing_struct_times[i])

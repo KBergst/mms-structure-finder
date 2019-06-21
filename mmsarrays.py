@@ -42,7 +42,28 @@ def vector_projection(array,norm):
     plane_proj=array-norm_proj
     
     return plane_proj
-    
+
+def coord_transformation(vectors,basis_matrix):
+    '''
+    Transforms a vector into the coordinates specified by the given
+        basis matrix
+    Inputs:
+        vector-the vectors to be transformed, in an array of shape (length,3)
+        basis_matrix- the basis matrix of the new coordinates
+    Outputs:
+        new_vector- vector in the new coordinates
+        
+    TODO: make this more efficient if possible, there has to be a better way
+    '''
+    basis_matrix_inv=np.linalg.inv(basis_matrix)
+    new_vectors=np.transpose(np.array([[],[],[]]))
+    for i in range(len(vectors[:,0])):
+        vector=vectors[i,:]
+        new_vector=np.reshape(np.matmul(basis_matrix_inv,vector),(1,3))
+        new_vectors=np.append(new_vectors,new_vector,axis=0)
+        
+    return new_vectors
+
 def boxcar_avg(array,width):
     '''
     Does boxcar averaging for an array over the number of data points
