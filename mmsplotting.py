@@ -114,7 +114,7 @@ def textify(string):
     return s_plaintext
 
 ##### PLOTTING FNS ############################################################
-def basic_plotter(ax,data1,data2,legend=None):
+def basic_plotter(ax,data1,data2,legend=None,labels=None,yerrors=None):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -125,10 +125,21 @@ def basic_plotter(ax,data1,data2,legend=None):
         data1- the x-axis variables
         data2- the y-axis variables
         legend- possible string for the legend of this data. Default is None
+        labels- list of three strings, 
+            labels[0] is the plot title
+            labels[1] is the x label 
+            labels[2] is the y label
+            default is None
+        y errors- the y error bars for each point. Default None, can either be
+            a constant value or have the same dimension as data1 and data2
     Outputs:
         out- the ax.plot instance used
     '''
     out = ax.plot(data1, data2,label=legend)
+    if not (yerrors is None): #set legend, if it exists
+        ax.errorbar(data1,data2,yerr=yerrors,fmt='.',capsize=3)
+    if not (labels is None): #set labels, if they exist
+        ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
     ax.legend(edgecolor='black')
     return out
 
