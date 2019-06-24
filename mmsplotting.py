@@ -114,7 +114,8 @@ def textify(string):
     return s_plaintext
 
 ##### PLOTTING FNS ############################################################
-def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,yerrors=None):
+def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
+                  yerrors=None,square=False):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -132,6 +133,7 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,yerrors=N
             default is None
         y errors- the y error bars for each point. Default None, can either be
             a constant value or have the same dimension as data1 and data2
+        square- true if want square plot, false if not. Default False
     Outputs:
         out- the ax.plot instance used
     '''
@@ -142,9 +144,35 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,yerrors=N
         ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
     if equalax is True:
         ax.set_aspect('equal')
+    if square is True:
+        xlims,ylims=window_squarer(data1,data2)
+        ax.set_xlim(xlims[0],xlims[1])
+        ax.set_ylim(ylims[0],ylims[1])
     ax.legend(edgecolor='black')
     return out
 
+def window_squarer(data1,data2):
+    '''
+    makes the window have the same x and y limits (thus makes it a square,
+                                                   if the axes are equal)
+    Inputs:
+        data1- the x-axis variables
+        data2- the y-axis variables
+    Outputs:
+        xlims- list of the minimum and maximum values for the x axis
+        ylims- list of the minimum and maximum values for the y axis
+    '''
+    scale1=np.amax(data1)-np.amin(data1)
+    mid1=np.amin(data1)+scale1/2
+    scale2=np.amax(data2)-np.amin(data2)
+    mid2=np.amin(data2)+scale2/2
+    scale_tot=max([scale1,scale2])
+    
+    xlims=[mid1-scale_tot/2,mid1+scale_tot/2]
+    ylims=[mid2-scale_tot/2,mid2+scale_tot/2]
+    
+    return xlims,ylims
+    
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
     plotter function using matplotlib (mpl) objects
@@ -178,7 +206,7 @@ def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
         
     return out
 
-def line_maker(axes,time,edges):
+def line_maker(axes,horiz=None,time=None,edges=None):
     '''
     Makes all horizontal/vertical lines needed on the timeseries plots
     Currently makes a horizontal line at zero and a vertical line at 'time'
@@ -186,17 +214,22 @@ def line_maker(axes,time,edges):
     Times used are datetime objects
     Inputs:
         axes- list-like object of multiple mpl Axes to draw lines on
-        time- the central time which will have a red vertical line
+        horiz- the location of the horizontal line to be drawn, default None
+        time- the central time which will have a red vertical line. Default None
         edges- list-like object of the locations of the two blue vertical lines
+            default None
     
     TODO: Check if the case of a single Axes instance being passed is handled
         correctly
     '''
     for ax in axes:
-        ax.axhline(color="black")
-        ax.axvline(x=time,color="red")
-        ax.axvline(x=edges[0],color="blue")
-        ax.axvline(x=edges[1],color="blue")
+        if not (horiz is None):
+            ax.axhline(y=horiz,color="black")            
+        if not (time is None):
+            ax.axvline(x=time,color="red")
+        if not (edges is None):
+            ax.axvline(x=edges[0],color="blue")
+            ax.axvline(x=edges[1],color="blue")
 
 def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
     '''

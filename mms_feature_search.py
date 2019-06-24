@@ -148,9 +148,9 @@ for M in MMS:
                          'Number of points in nest','Displacement (radians)']
     nested_mva_labels_12=['Angular displacement of nested MVA in the 1-2 plane',
                          'Number of points in nest','Displacement (radians)']
-    hodogram_label_01=['Magnetic field hodogram max-intermediate directions',
+    hodogram_label_01=['B-field hodogram max-intermediate directions',
                        'intermediate variance B','maximum variance B']
-    hodogram_label_02=['Magnetic field hodogram max-min directions',
+    hodogram_label_02=['B-field hodogram max-min directions',
                        'minimum variance B','maximum variance B']
     
     
@@ -304,7 +304,7 @@ for M in MMS:
         '''
         b_eigenvals,b_eigenvecs,b_angle_errs,nest_points_num, \
             angle_02_deviation,angle_12_deviation=ma.nested_mva(b_field_struct)
-            
+        print(b_eigenvals)    
         if (b_eigenvals[0]/b_eigenvals[1] > mva_limit and \
             b_eigenvals[1]/b_eigenvals[2] > mva_limit):
             mva_good=True
@@ -403,12 +403,15 @@ for M in MMS:
                                labels=nested_mva_labels_12,
                                yerrors=b_angle_errs[:,2])  
             mmsp.basic_plotter(ax9,b_mva[:,1],b_mva[:,0],equalax=True,
-                               labels=['Hodogram 1','','']) 
+                               labels=hodogram_label_01,square=True) 
             mmsp.basic_plotter(ax10,b_mva[:,2],b_mva[:,0],equalax=True,
-                               labels=['Hodogram 2','','']) 
+                               labels=hodogram_label_02,square=True) 
             #add horizontal and vertical lines to plot (crossing + extent)
-            mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],crossing_times[i],
-                       crossing_struct_times[i])
+            mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],time=crossing_times[i],
+                       edges=crossing_struct_times[i],horiz=0.)
+            #add extent lines to hodograms
+            mmsp.line_maker([ax9],edges=[min(b_mva[:,1]),max(b_mva[:,1])])
+            mmsp.line_maker([ax10],edges=[min(b_mva[:,2]),max(b_mva[:,2])])
             #add categorization information to plot
             ax6.text(0.5,0.5,jy_sign_label+vex_sign_label+crossing_sign_label \
                      +crossing_size_label+crossing_de_label+crossing_dp_label,
@@ -436,8 +439,8 @@ for M in MMS:
                                      b_labels,plot_limits) #plot Bz
                 mmsp.tseries_plotter(fig,ax2,time_b_large,bz_large,
                                 b_labels,plot_limits_large) #plot B large
-                mmsp.line_maker([ax1,ax2],crossing_times[i],
-                           crossing_struct_times[i])   
+                mmsp.line_maker([ax1,ax2],time=crossing_times[i],
+                           edges=crossing_struct_times[i],horiz=0.)   
                 fig.savefig(os.path.join(scales_out_directory,'MMS'+M+'_'+ \
                             plot_out_name+str(i)+".png"), bbox_inches='tight')
                 plt.close(fig='all')
@@ -491,7 +494,6 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
         #that would be more easily doable
 #TODO: change structure extent determination, possibly using a sliding scale?
         #must reach this distance unless the next crossing is closer?
-        #possibly wait on this and discuss with group
 #TODO: read a lot of the literature!!!
         #plasmoid statistics studies, waves in the magnetotail, etc.
         

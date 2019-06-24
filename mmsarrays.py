@@ -141,14 +141,16 @@ def nested_mva(array):
             reference normal, in the direction of reference direction 0
         angle_ref_deviation_1-angular displacement of the nest normal from the
             reference normal, in the direction of reference direction 1
-    '''
-        
+    '''    
     halfway_point=len(array[:,0])//2
     if (len(array[:,0]) % 2 == 0):
         num_nests=halfway_point-1
     else:
         num_nests=halfway_point
-        
+
+#    avging_points=int(len(array[:,0])*smoothing)
+#    array_smooth=np.transpose(np.array([boxcar_avg(column,avging_points) for \
+#                                        column in array.T]))   
     junk1,tmp,junk2=basic_mva(array) #reference norm
     ref_dir_norm=tmp[:,2] # reference minimum variance direction
     ref_dir_0=tmp[:,0] # reference maximum variance direction
