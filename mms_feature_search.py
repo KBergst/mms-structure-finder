@@ -152,6 +152,8 @@ for M in MMS:
                        'intermediate variance B','maximum variance B']
     hodogram_label_02=['B-field hodogram max-min directions',
                        'minimum variance B','maximum variance B']
+    b_mva_labels=['MMS'+M+' B-field in minimum-variance coordinates vs. time',
+                  'Time','B (nT)']
     
     
     b_field=np.transpose(np.array([[],[],[],[]])) #for all B field data
@@ -243,6 +245,13 @@ for M in MMS:
                                     len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
+        
+        if (i==16 and DEBUG): #debug option
+            #check how long the code took to run
+            end=time.time()
+            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
+            sys.exit("done with test cases")  
+            
         '''Slicing and sectioning the various data arrays '''
         #slice b and b timeseries, set plotting limits
         time_b_cut=time_reg_b[crossing_windows[i][0]:crossing_windows[i][1]]
@@ -255,7 +264,7 @@ for M in MMS:
         #slice ni,vi and ni timeseries
         window_mask_ni=ma.interval_mask(time_reg_ni,plot_limits[0],plot_limits[1])
         struct_mask_ni=ma.interval_mask(time_reg_ni,time_b_struct[0],
-                                     time_b_struct[1])
+                                     time_b_struct[-1])
         time_ni_cut=time_reg_ni[window_mask_ni]
         ni_cut=ni[window_mask_ni]
         ni_err_cut=ni_err[window_mask_ni]
@@ -264,7 +273,7 @@ for M in MMS:
         #slice ne and ne timeseries
         window_mask_ne=ma.interval_mask(time_reg_ne,plot_limits[0],plot_limits[1])
         struct_mask_ne=ma.interval_mask(time_reg_ne,time_b_struct[0],
-                                     time_b_struct[1])
+                                     time_b_struct[-1])
         time_ne_cut=time_reg_ne[window_mask_ne]
         ne_cut=ne[window_mask_ne]
         ne_smooth_cut=ne_smooth[window_mask_ne]
@@ -296,10 +305,6 @@ for M in MMS:
         - if the coordinates are sufficiently well-determined (ratios >10)
             do the calculations for guide field etc. in them
             guide field along middle-variance axis, etc.
-        - regardless of if they are or not, structure gets its coordinates,
-            eigenvalues, statistical uncertainties, etc. stored as attributes
-        - also regardless make hodograms of the structure in the MVA coords,
-            as well as b-field timeseries, maybe current too
         
         '''
         b_eigenvals,b_eigenvecs,b_angle_errs,nest_points_num, \
@@ -311,26 +316,28 @@ for M in MMS:
         else:
             mva_good=False
             
-        b_mva=ma.coord_transformation(b_field_struct[:,0:3],b_eigenvecs)      
+        b_mva_struct=ma.coord_transformation(b_field_struct[:,0:3],b_eigenvecs)
+        valid_zero_crossings=ms.find_crossings(b_mva_struct[:,0],time_b_struct,
+                                              data_gap_time) #max var direction crosses zero?
+
+        if len(valid_zero_crossings) is 0:
+            continue #no zero crossing, so in MVA coordinates it no longer fulfills needed conditions
+        
         '''Additional calculation of relevant information '''
         #determine signs of vex and jy
         jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
         vex_sign,vex_qual=ma.find_avg_signs(vex_struct)
-        #determine the average By over structure and non-structure
-            #part of window(guide field approx)
-        window_mask_b=ma.interval_mask(time_reg_b,plot_limits[0],
-                                       plot_limits[1])
-        struct_mask_b=ma.interval_mask(time_reg_b,time_b_struct[0],
-                                       time_b_struct[1])
+        #determine the average By over structure (guide field approx)
         by_struct_avg=np.average(by_struct)
 
         #determine crossing clasification and size and update counts:
-        crossing_type,type_flag=ms.structure_classification(crossing_signs_bz[i],
+        crossing_type,type_flag=ms.structure_classification( \
+                                                         crossing_signs_bz[i],
                                                          vex_sign,vex_qual,
                                                          jy_sign,jy_qual,
                                                          quality_min)
-        crossing_size=ms.structure_sizer([time_b_struct[0],time_b_struct[1]],
-                                      vex_struct)
+        crossing_size=ms.structure_sizer([time_b_struct[0],
+                                          time_b_struct[-1]],vex_struct)
         str_crossing_size=f"{crossing_size:.1f}"  #string formatting
         MMS_structure_counts[M][type_dict[type_flag]] += 1
         
@@ -369,6 +376,7 @@ for M in MMS:
             ax8=plt.subplot2grid(gridsize,(1,2),colspan=2)
             ax9=plt.subplot2grid(gridsize,(2,2))
             ax10=plt.subplot2grid(gridsize,(2,3))
+            ax11=plt.subplot2grid(gridsize,(3,2),colspan=2)
             mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,1],
                                      b_labels,plot_limits,legend=b_legend[0]) #plot By  
             mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,2],
@@ -402,16 +410,24 @@ for M in MMS:
             mmsp.basic_plotter(ax8,nest_points_num,angle_12_deviation,
                                labels=nested_mva_labels_12,
                                yerrors=b_angle_errs[:,2])  
-            mmsp.basic_plotter(ax9,b_mva[:,1],b_mva[:,0],equalax=True,
-                               labels=hodogram_label_01,square=True) 
-            mmsp.basic_plotter(ax10,b_mva[:,2],b_mva[:,0],equalax=True,
-                               labels=hodogram_label_02,square=True) 
+            mmsp.basic_plotter(ax9,b_mva_struct[:,1],b_mva_struct[:,0],
+                               equalax=True,labels=hodogram_label_01,
+                               square=True) 
+            mmsp.basic_plotter(ax10,b_mva_struct[:,2],b_mva_struct[:,0],
+                               equalax=True,labels=hodogram_label_02,
+                               square=True) 
+            for n in range(3):
+                mmsp.tseries_plotter(fig,ax11,time_b_struct,
+                                     b_mva_struct[:,n],['','',''],plot_limits,
+                                     legend="B component {}".format(n))
             #add horizontal and vertical lines to plot (crossing + extent)
             mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],time=crossing_times[i],
                        edges=crossing_struct_times[i],horiz=0.)
             #add extent lines to hodograms
-            mmsp.line_maker([ax9],edges=[min(b_mva[:,1]),max(b_mva[:,1])])
-            mmsp.line_maker([ax10],edges=[min(b_mva[:,2]),max(b_mva[:,2])])
+            mmsp.line_maker([ax9],edges=[min(b_mva_struct[:,1]),
+                            max(b_mva_struct[:,1])])
+            mmsp.line_maker([ax10],edges=[min(b_mva_struct[:,2]),
+                            max(b_mva_struct[:,2])])
             #add categorization information to plot
             ax6.text(0.5,0.5,jy_sign_label+vex_sign_label+crossing_sign_label \
                      +crossing_size_label+crossing_de_label+crossing_dp_label,
@@ -446,12 +462,6 @@ for M in MMS:
                 plt.close(fig='all')
             
 #        tracker.print_diff() #for detecting memory leaks
-
-        if (i==15 and DEBUG): #debug option
-            #check how long the code took to run
-            end=time.time()
-            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
-            sys.exit("done with test cases")  
 
 """ STATISTICAL PART """
 
