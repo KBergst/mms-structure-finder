@@ -138,9 +138,12 @@ def find_maxes_mins(array,indices,directions,width,min_height):
             elif (n < len(indices)-1): #first index
                 next_ext=np.amax(array[indices[n]:indices[n+1]])
                 prev_ext=np.amin(array[indices[n]-50:indices[n]])
-            else: #last index
+            elif (n == len(indices)-1) and n>0: #last index
                 next_ext=np.amax(array[indices[n]:indices[n]+50]) 
                 prev_ext=np.amin(array[indices[n-1]:indices[n]])
+            else: #both first and last index
+                next_ext=np.amax(array[indices[n]:indices[n]+50]) 
+                prev_ext=np.amin(array[indices[n]-50:indices[n]])
         else: #crossing from pos to neg
             if (n < len(indices)-1) and n>0 : #index on each side
                 next_ext=np.amin(array[indices[n]:indices[n+1]])
@@ -148,9 +151,12 @@ def find_maxes_mins(array,indices,directions,width,min_height):
             elif (n < len(indices)-1): #first index
                 next_ext=np.amin(array[indices[n]:indices[n+1]])
                 prev_ext=np.amax(array[indices[n]-50:indices[n]])
-            else: #last index
+            elif (n== len(indices)-1) and n>0: #last index
                 next_ext=np.amin(array[indices[n]:indices[n]+50]) 
                 prev_ext=np.amax(array[indices[n-1]:indices[n]])
+            else: #both first and last index
+                next_ext=np.amin(array[indices[n]:indices[n]+50])
+                prev_ext=np.amax(array[indices[n]-50:indices[n]])
         prev_exts=np.append(prev_exts,[prev_ext]) #add to list
         next_exts=np.append(next_exts,[next_ext]) #add to list
 

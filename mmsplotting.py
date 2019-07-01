@@ -56,7 +56,8 @@ def size_fitter(x,y,fitfn):
     max_idx=np.argmax(y)
     x_for_fit=x[max_idx:]
     y_for_fit=y[max_idx:]
-    popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit)
+    popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit,
+                           p0=[y[max_idx],0.005])
     fit_bdy=[x_for_fit[0],x_for_fit[-1]]
     x_smooth=np.linspace(fit_bdy[0],fit_bdy[1],num=1000)
     y_smooth=fitfn(x_smooth,*popt)
@@ -114,7 +115,8 @@ def textify(string):
     return s_plaintext
 
 ##### PLOTTING FNS ############################################################
-def basic_plotter(ax,data1,data2,legend=None):
+def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
+                  yerrors=None,square=False):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -125,13 +127,53 @@ def basic_plotter(ax,data1,data2,legend=None):
         data1- the x-axis variables
         data2- the y-axis variables
         legend- possible string for the legend of this data. Default is None
+        labels- list of three strings, 
+            labels[0] is the plot title
+            labels[1] is the x label 
+            labels[2] is the y label
+            default is None
+        y errors- the y error bars for each point. Default None, can either be
+            a constant value or have the same dimension as data1 and data2
+        square- true if want square plot, false if not. Default False
     Outputs:
         out- the ax.plot instance used
     '''
     out = ax.plot(data1, data2,label=legend)
+    if not (yerrors is None): #set legend, if it exists
+        ax.errorbar(data1,data2,yerr=yerrors,fmt='.',capsize=3)
+    if not (labels is None): #set labels, if they exist
+        ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
+    if equalax is True:
+        ax.set_aspect('equal')
+    if square is True:
+        xlims,ylims=window_squarer(data1,data2)
+        ax.set_xlim(xlims[0],xlims[1])
+        ax.set_ylim(ylims[0],ylims[1])
     ax.legend(edgecolor='black')
     return out
 
+def window_squarer(data1,data2):
+    '''
+    makes the window have the same x and y limits (thus makes it a square,
+                                                   if the axes are equal)
+    Inputs:
+        data1- the x-axis variables
+        data2- the y-axis variables
+    Outputs:
+        xlims- list of the minimum and maximum values for the x axis
+        ylims- list of the minimum and maximum values for the y axis
+    '''
+    scale1=np.amax(data1)-np.amin(data1)
+    mid1=np.amin(data1)+scale1/2
+    scale2=np.amax(data2)-np.amin(data2)
+    mid2=np.amin(data2)+scale2/2
+    scale_tot=max([scale1,scale2])
+    
+    xlims=[mid1-scale_tot/2,mid1+scale_tot/2]
+    ylims=[mid2-scale_tot/2,mid2+scale_tot/2]
+    
+    return xlims,ylims
+    
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     '''
     plotter function using matplotlib (mpl) objects
@@ -160,10 +202,12 @@ def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     ax.tick_params(axis='both',length=6,width=2, direction='in' )
     ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
     out = ax.plot(data1, data2,label=legend)
-    ax.legend(edgecolor='black')
+    if not (legend is None):
+        ax.legend(edgecolor='black')
+        
     return out
 
-def line_maker(axes,time,edges):
+def line_maker(axes,horiz=None,time=None,edges=None):
     '''
     Makes all horizontal/vertical lines needed on the timeseries plots
     Currently makes a horizontal line at zero and a vertical line at 'time'
@@ -171,17 +215,22 @@ def line_maker(axes,time,edges):
     Times used are datetime objects
     Inputs:
         axes- list-like object of multiple mpl Axes to draw lines on
-        time- the central time which will have a red vertical line
+        horiz- the location of the horizontal line to be drawn, default None
+        time- the central time which will have a red vertical line. Default None
         edges- list-like object of the locations of the two blue vertical lines
+            default None
     
     TODO: Check if the case of a single Axes instance being passed is handled
         correctly
     '''
     for ax in axes:
-        ax.axhline(color="black")
-        ax.axvline(x=time,color="red")
-        ax.axvline(x=edges[0],color="blue")
-        ax.axvline(x=edges[1],color="blue")
+        if not (horiz is None):
+            ax.axhline(y=horiz,color="black")            
+        if not (time is None):
+            ax.axvline(x=time,color="red")
+        if not (edges is None):
+            ax.axvline(x=edges[0],color="blue")
+            ax.axvline(x=edges[1],color="blue")
 
 def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
     '''
@@ -405,7 +454,7 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                 basic_plotter(axs[i],x_exp,y_exp,
                               legend='Exponential fit ${} e^{{-{}x}}$' \
                               .format(f"{params_exp[0]:.2f}",
-                                         f"{params_exp[1]:.2f}"))
+                                         f"{params_exp[1]:.3f}"))
                 basic_plotter(axs[i],x_pwr,y_pwr,
                               legend='Power law fit ${} x^{{ {} }}$' \
                               .format(f"{params_pwr[0]:.2f}",

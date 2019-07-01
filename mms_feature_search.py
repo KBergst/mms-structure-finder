@@ -48,31 +48,35 @@ hists_out_directory=os.path.join(statistics_out_directory,"hists")
 scatters_out_directory=os.path.join(statistics_out_directory,"scatters")
 
 #parameters (to fiddle with)
-boxcar_width=30 #number of points to boxcar average the electron density over
+boxcar_width=15 #number of points to boxcar average the electron density over
 ne_fudge_factor=0.001 #small amount of density to add to avoid NaN velocities
 window_padding=20 #number of indices to add to each side of window
-extrema_width=30 #number of points to compare on each side to declare an extrema
-min_width=15 #minimum number of points between crossings to "count"
-min_crossing_height=0.2 #expected nT error in region of interest as per documentation
+extrema_width=10 #number of points to compare on each side to declare an extrema
+min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify 
                                                   #something as a data gap
+mva_limit=10. #minimum eigenvalue ratio from MVA to be considered 'good'
 quality_min=0.5 #used in structure_classification, minimum accepted quality
-nbins_small=20 #number of bins for log-scale histograms and other small hists
-nbins=40 #number of bins for the size histograms
+nbins_small=15 #number of bins for log-scale histograms and other small hists
+nbins=30 #number of bins for the size histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
-REPLOT=0 #chooses whether to regenerate the graphs or not
+REPLOT=0 #chooses whether to regenerate the timeseries graphs or not
 DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
     
     #initializer
-    def __init__(self,kind,size,gf):
+    def __init__(self,kind,size,gf,e_vals,e_vecs,e_vec_unc,good_mva):
         self.kind=kind
         self.size=size
         self.guide_field=gf
+        self.eigenvalues=e_vals
+        self.natural_coordinates=e_vecs
+        self.coordinate_uncertainties=e_vec_unc
+        self.good_coordinate=good_mva
         
     #for pluralization in outputs
     plurals={'size':'sizes',
@@ -139,6 +143,17 @@ for M in MMS:
                   r'Vx fluctuations GSM (km/s)']
     fluct_legend=[r'$v_i$ fluctuations from moments data',
                   r'$v_e$ fluctuations from curlometer']
+    nested_mva_labels_02=['Angular displacement of nested MVA in the 0-2 plane',
+                         'Number of points in nest','Displacement (radians)']
+    nested_mva_labels_12=['Angular displacement of nested MVA in the 1-2 plane',
+                         'Number of points in nest','Displacement (radians)']
+    hodogram_label_01=['B-field hodogram max-intermediate directions',
+                       'intermediate variance B','maximum variance B']
+    hodogram_label_02=['B-field hodogram max-min directions',
+                       'minimum variance B','maximum variance B']
+    b_mva_labels=['MMS'+M+' B-field in minimum-variance coordinates vs. time',
+                  'Time','B (nT)']
+    
     
     b_field=np.transpose(np.array([[],[],[],[]])) #for all B field data
     ni=np.array([])
@@ -229,18 +244,26 @@ for M in MMS:
                                     len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
+        
+        if (i==16 and DEBUG): #debug option
+            #check how long the code took to run
+            end=time.time()
+            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
+            sys.exit("done with test cases")  
+            
         '''Slicing and sectioning the various data arrays '''
         #slice b and b timeseries, set plotting limits
         time_b_cut=time_reg_b[crossing_windows[i][0]:crossing_windows[i][1]]
         b_field_cut=b_field[crossing_windows[i][0]:crossing_windows[i][1],:]
-        by_struct=b_field[crossing_structs[i][0]:crossing_structs[i][1],1]
+        b_field_struct=b_field[crossing_structs[i][0]:crossing_structs[i][1],:]
+        by_struct=b_field_struct[:,1]
         btot_fluct=ma.fluct_abt_avg(b_field_cut[:,3]) #fluctuations in total B-field
         time_b_struct=time_reg_b[crossing_structs[i][0]:crossing_structs[i][1]]
         plot_limits=[time_b_cut[0],time_b_cut[-1]] #data section
         #slice ni,vi and ni timeseries
         window_mask_ni=ma.interval_mask(time_reg_ni,plot_limits[0],plot_limits[1])
         struct_mask_ni=ma.interval_mask(time_reg_ni,time_b_struct[0],
-                                     time_b_struct[1])
+                                     time_b_struct[-1])
         time_ni_cut=time_reg_ni[window_mask_ni]
         ni_cut=ni[window_mask_ni]
         ni_err_cut=ni_err[window_mask_ni]
@@ -249,7 +272,7 @@ for M in MMS:
         #slice ne and ne timeseries
         window_mask_ne=ma.interval_mask(time_reg_ne,plot_limits[0],plot_limits[1])
         struct_mask_ne=ma.interval_mask(time_reg_ne,time_b_struct[0],
-                                     time_b_struct[1])
+                                     time_b_struct[-1])
         time_ne_cut=time_reg_ne[window_mask_ne]
         ne_cut=ne[window_mask_ne]
         ne_smooth_cut=ne_smooth[window_mask_ne]
@@ -276,32 +299,51 @@ for M in MMS:
         dp_cut_avg=np.average(dp_cut)
         str_de_avg=f"{de_cut_avg:.1f}"  #string formatting
         str_dp_avg=f"{dp_cut_avg:.1f}"  #string formatting
+
+        ''' Implementation of MVA 
+        - if the coordinates are sufficiently well-determined (ratios >10)
+            do the calculations for guide field etc. in them
+            guide field along middle-variance axis, etc.
+        
+        '''
+        b_eigenvals,b_eigenvecs,b_angle_errs,nest_points_num, \
+            angle_02_deviation,angle_12_deviation=ma.nested_mva(b_field_struct)  
+        if (b_eigenvals[0]/b_eigenvals[1] > mva_limit and \
+            b_eigenvals[1]/b_eigenvals[2] > mva_limit):
+            mva_good=True
+        else:
+            mva_good=False
+            
+        b_mva_struct=ma.coord_transformation(b_field_struct[:,0:3],b_eigenvecs)
+        valid_zero_crossings=ms.find_crossings(b_mva_struct[:,0],time_b_struct,
+                                              data_gap_time) #max var direction crosses zero?
+
+        if len(valid_zero_crossings) is 0:
+            continue #no zero crossing, so in MVA coordinates it no longer fulfills needed conditions
         
         '''Additional calculation of relevant information '''
         #determine signs of vex and jy
         jy_sign,jy_qual=ma.find_avg_signs(jy_struct)
         vex_sign,vex_qual=ma.find_avg_signs(vex_struct)
-        #determine the average By over structure and non-structure
-            #part of window(guide field approx)
-        window_mask_b=ma.interval_mask(time_reg_b,plot_limits[0],
-                                       plot_limits[1])
-        struct_mask_b=ma.interval_mask(time_reg_b,time_b_struct[0],
-                                       time_b_struct[1])
+        #determine the average By over structure (guide field approx)
         by_struct_avg=np.average(by_struct)
 
         #determine crossing clasification and size and update counts:
-        crossing_type,type_flag=ms.structure_classification(crossing_signs_bz[i],
+        crossing_type,type_flag=ms.structure_classification( \
+                                                         crossing_signs_bz[i],
                                                          vex_sign,vex_qual,
                                                          jy_sign,jy_qual,
                                                          quality_min)
-        crossing_size=ms.structure_sizer([time_b_struct[0],time_b_struct[1]],
-                                      vex_struct)
+        crossing_size=ms.structure_sizer([time_b_struct[0],
+                                          time_b_struct[-1]],vex_struct)
         str_crossing_size=f"{crossing_size:.1f}"  #string formatting
         MMS_structure_counts[M][type_dict[type_flag]] += 1
         
         MMS_structures[M]=np.append(MMS_structures[M],
                                       [Structure(type_dict[type_flag],
                                                 crossing_size,by_struct_avg,
+                                                b_eigenvals,b_eigenvecs,
+                                                b_angle_errs[-1],mva_good
                                                 )])
         #plot everything, if desired:
         if (REPLOT):
@@ -319,15 +361,20 @@ for M in MMS:
             #plot everything
             mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
             plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
-            gridsize=(6,1)
-            fig=plt.figure(figsize=(8,15)) #width,height
-            ax1=plt.subplot2grid(gridsize,(0,0))
-            ax2=plt.subplot2grid(gridsize,(1,0))   
-            ax3=plt.subplot2grid(gridsize,(2,0)) 
-            ax4=plt.subplot2grid(gridsize,(3,0))
-            ax5=plt.subplot2grid(gridsize,(4,0))
-            ax6=plt.subplot2grid(gridsize,(5,0))
+            gridsize=(6,4)
+            fig=plt.figure(figsize=(16,15)) #width,height
+            ax1=plt.subplot2grid(gridsize,(0,0),colspan=2)
+            ax2=plt.subplot2grid(gridsize,(1,0),colspan=2)   
+            ax3=plt.subplot2grid(gridsize,(2,0),colspan=2) 
+            ax4=plt.subplot2grid(gridsize,(3,0),colspan=2)
+            ax5=plt.subplot2grid(gridsize,(4,0),colspan=2)
+            ax6=plt.subplot2grid(gridsize,(5,0),colspan=2)
             ax6.axis('off')
+            ax7=plt.subplot2grid(gridsize,(0,2),colspan=2)
+            ax8=plt.subplot2grid(gridsize,(1,2),colspan=2)
+            ax9=plt.subplot2grid(gridsize,(2,2))
+            ax10=plt.subplot2grid(gridsize,(2,3))
+            ax11=plt.subplot2grid(gridsize,(3,2),colspan=2)
             mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,1],
                                      b_labels,plot_limits,legend=b_legend[0]) #plot By  
             mmsp.tseries_plotter(fig,ax1,time_b_cut,b_field_cut[:,2],
@@ -354,10 +401,31 @@ for M in MMS:
             mmsp.tseries_plotter(fig,ax5,time_ni_cut,vix_fluct,fluct_labels,
                             plot_limits,legend=fluct_legend[0])#plot vi fluctuations  
             mmsp.tseries_plotter(fig,ax5,time_j_struct,vex_fluct,fluct_labels,
-                            plot_limits,legend=fluct_legend[1])#plot ve fluctuations 
+                            plot_limits,legend=fluct_legend[1])#plot ve fluctuations
+            mmsp.basic_plotter(ax7,nest_points_num,angle_02_deviation,
+                               labels=nested_mva_labels_02,
+                               yerrors=b_angle_errs[:,1])
+            mmsp.basic_plotter(ax8,nest_points_num,angle_12_deviation,
+                               labels=nested_mva_labels_12,
+                               yerrors=b_angle_errs[:,2])  
+            mmsp.basic_plotter(ax9,b_mva_struct[:,1],b_mva_struct[:,0],
+                               equalax=True,labels=hodogram_label_01,
+                               square=True) 
+            mmsp.basic_plotter(ax10,b_mva_struct[:,2],b_mva_struct[:,0],
+                               equalax=True,labels=hodogram_label_02,
+                               square=True) 
+            for n in range(3):
+                mmsp.tseries_plotter(fig,ax11,time_b_struct,
+                                     b_mva_struct[:,n],['','',''],plot_limits,
+                                     legend="B component {}".format(n))
             #add horizontal and vertical lines to plot (crossing + extent)
-            mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],crossing_times[i],
-                       crossing_struct_times[i])
+            mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],time=crossing_times[i],
+                       edges=crossing_struct_times[i],horiz=0.)
+            #add extent lines to hodograms
+            mmsp.line_maker([ax9],edges=[min(b_mva_struct[:,1]),
+                            max(b_mva_struct[:,1])])
+            mmsp.line_maker([ax10],edges=[min(b_mva_struct[:,2]),
+                            max(b_mva_struct[:,2])])
             #add categorization information to plot
             ax6.text(0.5,0.5,jy_sign_label+vex_sign_label+crossing_sign_label \
                      +crossing_size_label+crossing_de_label+crossing_dp_label,
@@ -385,19 +453,13 @@ for M in MMS:
                                      b_labels,plot_limits) #plot Bz
                 mmsp.tseries_plotter(fig,ax2,time_b_large,bz_large,
                                 b_labels,plot_limits_large) #plot B large
-                mmsp.line_maker([ax1,ax2],crossing_times[i],
-                           crossing_struct_times[i])   
+                mmsp.line_maker([ax1,ax2],time=crossing_times[i],
+                           edges=crossing_struct_times[i],horiz=0.)   
                 fig.savefig(os.path.join(scales_out_directory,'MMS'+M+'_'+ \
                             plot_out_name+str(i)+".png"), bbox_inches='tight')
                 plt.close(fig='all')
             
 #        tracker.print_diff() #for detecting memory leaks
-
-        if (i==15 and DEBUG): #debug option
-            #check how long the code took to run
-            end=time.time()
-            print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
-            sys.exit("done with test cases")  
 
 """ STATISTICAL PART """
 
@@ -432,29 +494,21 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
             
 
 #Urgent Priorities:
-#TODO: fix guide field calculation
-        #need to better account for changing By in the relative guide field
-        #calculation- how to account for constant slope etc.
-        #might make its own specialized function in the mmsstructs module
-#TODO: change how output strings are done (using the .format method?)
+#TODO: implement MVA fully
+#TODO: make more histograms of qualities of the plasmoids, and scatter plots
+    #for plasmoid, push current sheet etc. specific things, can make
+        #child classes to Structure
 #TODO: normalize by length scales? Maybe just for printouts
         #that would be more easily doable
 #TODO: change structure extent determination, possibly using a sliding scale?
         #must reach this distance unless the next crossing is closer?
-        #possibly wait on this and discuss with group
-#TODO: try to fit power law / exponential?
-        #maybe wait and discuss potential fitting (ideas from literature)
 #TODO: read a lot of the literature!!!
         #plasmoid statistics studies, waves in the magnetotail, etc.
-#TODO: think about involving data from the search coil magnetometer? 
-        #could help screen out waves?
         
 #Later Priorities:
 #TODO: interpolate Bz to find exact time of zero crossing  for vertical line
-#TODO: capitalize all parameters
 #TODO: set maximum yrange of the velocity data to max of curlometer ve  
 #TODO: adapt code to conform to PEP-8 standards
-#TODO: attempt to fit a power law to the data 
 #TODO: Keep window sizes from getting extreme (see MMS4 structure 1...)
 #TODO: once can plot all for all spacecraft, figure out how to determine 
         #which structures found are the same
@@ -479,6 +533,7 @@ Need to do some reading into the kind of waves observable in this part of the
 magnetotail- want to be able to implement measures (either thru code or by eye)
 to avoid tagging wave-related time-dependent crossings with spatial structures
 Concern: solitons??? Ion cyclotron? etc.
+    Hodograms could help- look at papers from Cattell group (incl. Zac)
 Does the concept of a 'wave' even make sense in a turbulent plasma?
 If not, problem becomes instead determining which perturbations are time-based
 '''
