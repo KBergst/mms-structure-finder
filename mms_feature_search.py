@@ -48,22 +48,21 @@ hists_out_directory=os.path.join(statistics_out_directory,"hists")
 scatters_out_directory=os.path.join(statistics_out_directory,"scatters")
 
 #parameters (to fiddle with)
-boxcar_width=30 #number of points to boxcar average the electron density over
+boxcar_width=15 #number of points to boxcar average the electron density over
 ne_fudge_factor=0.001 #small amount of density to add to avoid NaN velocities
 window_padding=20 #number of indices to add to each side of window
-extrema_width=30 #number of points to compare on each side to declare an extrema
-min_width=15 #minimum number of points between crossings to "count"
-min_crossing_height=0.2 #expected nT error in region of interest as per documentation
+extrema_width=10 #number of points to compare on each side to declare an extrema
+min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify 
                                                   #something as a data gap
 mva_limit=10. #minimum eigenvalue ratio from MVA to be considered 'good'
 quality_min=0.5 #used in structure_classification, minimum accepted quality
-nbins_small=20 #number of bins for log-scale histograms and other small hists
-nbins=40 #number of bins for the size histograms
+nbins_small=15 #number of bins for log-scale histograms and other small hists
+nbins=30 #number of bins for the size histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
-REPLOT=1 #chooses whether to regenerate the graphs or not
+REPLOT=0 #chooses whether to regenerate the timeseries graphs or not
 DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
@@ -308,8 +307,7 @@ for M in MMS:
         
         '''
         b_eigenvals,b_eigenvecs,b_angle_errs,nest_points_num, \
-            angle_02_deviation,angle_12_deviation=ma.nested_mva(b_field_struct)
-        print(b_eigenvals)    
+            angle_02_deviation,angle_12_deviation=ma.nested_mva(b_field_struct)  
         if (b_eigenvals[0]/b_eigenvals[1] > mva_limit and \
             b_eigenvals[1]/b_eigenvals[2] > mva_limit):
             mva_good=True

@@ -56,7 +56,8 @@ def size_fitter(x,y,fitfn):
     max_idx=np.argmax(y)
     x_for_fit=x[max_idx:]
     y_for_fit=y[max_idx:]
-    popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit)
+    popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit,
+                           p0=[y[max_idx],0.005])
     fit_bdy=[x_for_fit[0],x_for_fit[-1]]
     x_smooth=np.linspace(fit_bdy[0],fit_bdy[1],num=1000)
     y_smooth=fitfn(x_smooth,*popt)
@@ -453,7 +454,7 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                 basic_plotter(axs[i],x_exp,y_exp,
                               legend='Exponential fit ${} e^{{-{}x}}$' \
                               .format(f"{params_exp[0]:.2f}",
-                                         f"{params_exp[1]:.2f}"))
+                                         f"{params_exp[1]:.3f}"))
                 basic_plotter(axs[i],x_pwr,y_pwr,
                               legend='Power law fit ${} x^{{ {} }}$' \
                               .format(f"{params_pwr[0]:.2f}",
