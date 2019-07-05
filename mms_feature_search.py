@@ -62,7 +62,7 @@ nbins=30 #number of bins for the size histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
-REPLOT=0 #chooses whether to regenerate the timeseries graphs or not
+REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
 DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
@@ -133,9 +133,10 @@ for M in MMS:
     j_labels=['MMS GSM curlometer current density vs. time','Time', 
               r'Jy GSM (microA/m^2)'  ]
     v_labels=['MMS GSM velocities vs. time','Time',
-               r'Vx GSM (km/s)']
-    v_legend=['$v_e$ from curlometer','$v_e$ rom moments data',
-               '$v_i$ from moments data']
+               r'V GSM (km/s)']
+    v_legend=['$v_ex$ from curlometer','$v_ey$ from curlometer',
+              '$v_ez$ from curlometer','$v_ex$ from moments data',
+               '$v_ix$ from moments data']
     n_labels=['MMS'+M+' density vs. time','Time','density cm^(-3)']
     n_legend=['ion density','electron density','smoothed electron density',
               'ion density error','electron density error']
@@ -217,8 +218,9 @@ for M in MMS:
     ne_smooth=ma.boxcar_avg(ne,boxcar_width) #smooth the ne data to avoid zeroes
     ne_nozero=np.where(ne_smooth>ne_fudge_factor,ne_smooth,ne_fudge_factor)
     #roughly calculate electron velocity from curlometer
-    vex=pp.electron_veloc_x(j_curl,TT_time_j,vi,ni,TT_time_ni,ne_nozero,
+    ve=pp.electron_veloc(j_curl,TT_time_j,vi,ni,TT_time_ni,ne_nozero,
                          TT_time_ne)
+    vex=ve[:,0]
     #calculate approximate electron and ion plasma frequencies and skin depths
     we=pp.plasma_frequency(ne_nozero,const.m_e)
     wp=pp.plasma_frequency(ni,const.m_p) #assuming all ions are protons (valid?)
@@ -289,7 +291,7 @@ for M in MMS:
         time_j_struct=time_reg_jcurl[struct_mask_j] #for structure
         jy_struct=jy[struct_mask_j] #for structure
         #slice ve curlometer timeseries (same as j)
-        vex_cut=vex[window_mask_j] #for window
+        ve_cut=ve[window_mask_j,:] #for window
         vex_struct=vex[struct_mask_j] #for structure
         vex_fluct=ma.fluct_abt_avg(vex_struct) #for fluctuation plot
         #slice inertial lengths and average
@@ -304,7 +306,7 @@ for M in MMS:
         - if the coordinates are sufficiently well-determined (ratios >10)
             do the calculations for guide field etc. in them
             guide field along middle-variance axis, etc.
-        
+        -write normal direction and plasma core direction
         '''
         b_eigenvals,b_eigenvecs,b_angle_errs,nest_points_num, \
             angle_02_deviation,angle_12_deviation=ma.nested_mva(b_field_struct)  
@@ -392,12 +394,15 @@ for M in MMS:
 #                            plot_limits,legend=n_legend[3]) #plot ni error for comparison
 #            tseries_plotter(fig,ax3,time_ne_cut,ne_err_cut,n_labels,
 #                            plot_limits,legend=n_legend[4]) #plot ne error for comparison
-            mmsp.tseries_plotter(fig,ax4,time_j_cut,vex_cut,v_labels,plot_limits,
-                          legend=v_legend[0])#plt vex from curlometer
+            for n in range(3):
+                if n==0: #only want vx for now
+                    mmsp.tseries_plotter(fig,ax4,time_j_cut,ve_cut[:,n],
+                                         v_labels,plot_limits,
+                                         legend=v_legend[n])#plt v from curlometer
             mmsp.tseries_plotter(fig,ax4,time_ne_cut,vex_fpi_cut,v_labels,
-                            plot_limits,legend=v_legend[1])#plot vex from moments
+                            plot_limits,legend=v_legend[3])#plot vex from moments
             mmsp.tseries_plotter(fig,ax4,time_ni_cut,vix_cut,v_labels,plot_limits,
-                          legend=v_legend[2])#plot vi from moments    
+                          legend=v_legend[4])#plot vi from moments    
             mmsp.tseries_plotter(fig,ax5,time_ni_cut,vix_fluct,fluct_labels,
                             plot_limits,legend=fluct_legend[0])#plot vi fluctuations  
             mmsp.tseries_plotter(fig,ax5,time_j_struct,vex_fluct,fluct_labels,

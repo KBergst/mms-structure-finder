@@ -41,9 +41,9 @@ def inertial_length(freq):
     d=c_km_s/freq
     return d
 
-def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):
+def electron_veloc(j,time_j,vi,ni,time_ni,ne,time_ne):
     '''
-    Used to calculate the x component of the electron velocity from curlometer 
+    Used to calculate the electron velocity from curlometer 
     current, ion velocity, and electron and ion densities.
     Inputs:
         j- array with the curlometer current in microAmps
@@ -54,7 +54,10 @@ def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):
         ne- the electron density in cm^-3
         time_ne- the timeseries for electron density (nanosecs)
     Outputs:
-        vex_arr- the calculated electron velocity as a numpy array in km/s
+        ve- the calculated electron velocity as a numpy array in km/s,
+            dimension (arrlength,3)
+    TODO: calculate all electron velocity components and remove the need to use
+        lists by using the np.vstack method
     '''
     vi_interp=interp.interp1d(time_ni,vi[:,0],kind='linear',
                               assume_sorted=True)
@@ -62,11 +65,12 @@ def electron_veloc_x(j,time_j,vi,ni,time_ni,ne,time_ne):
                               assume_sorted=True)
     ne_interp=interp.interp1d(time_ne,ne, kind='linear',
                               assume_sorted=True)
-    vex_list=[]
+    ve=np.transpose(np.array([[],[],[]]))
 #    vex_list_novi=[]
     for n,ttime in enumerate(time_j):
-        vex_time=(vi_interp(ttime)*ni_interp(ttime)*1e9* \
-                  E_CHARGE_mC-j[n,0])/E_CHARGE_mC/(ne_interp(ttime))/1e9
-        vex_list.append(vex_time) 
-    vex_arr=np.array(vex_list)
-    return vex_arr
+        tmp=(vi_interp(ttime)*ni_interp(ttime)*1e9* \
+                  E_CHARGE_mC-j[n,:])/E_CHARGE_mC/(ne_interp(ttime))/1e9
+        ve_time=tmp.reshape((1,3))
+        ve=np.concatenate((ve,ve_time),axis=0) 
+
+    return ve

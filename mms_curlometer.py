@@ -11,9 +11,12 @@ from matplotlib import dates # for formatting axes
 import pytz #for my own time stuff
 import scipy.interpolate as interp #for interpolating to MMS1 timeseries
 import os #for generalization to all systems
+import time as tm #for checking runtime
 
 #user created modules:
 import mmstimes as mt
+
+start=tm.time() 
 
 # User-defined variables:
 
@@ -263,7 +266,10 @@ with open(keyfile, 'w') as f:
     for file_num,file in enumerate(bfield_files):
         outstring=outfile+str(file_num)+".txt"+'\n'
         f.write(outstring)
-        
+
+#check how long the code took to run
+end=tm.time()
+print("Code executed in "+str(dt.timedelta(seconds=end-start)))        
 
 #TODO: Possibly try different interpolation styles than linear?
         
