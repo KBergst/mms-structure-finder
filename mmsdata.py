@@ -48,6 +48,7 @@ def get_cdf_var(filename,varnames):
     data=[]
     for varname in varnames:
         var_data=np.array(cdf_file.varget(varname))
+        
         data.append(var_data)
     return data
 

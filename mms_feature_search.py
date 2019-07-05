@@ -62,8 +62,8 @@ nbins=30 #number of bins for the size histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
-REPLOT=0 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=0 #chooses whether to stop at iteration 15 or not
+REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
+DEBUG=1 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -315,6 +315,7 @@ for M in MMS:
             mva_good=False
             
         b_mva_struct=ma.coord_transformation(b_field_struct[:,0:3],b_eigenvecs)
+        print(b_mva_struct)
         valid_zero_crossings=ms.find_crossings(b_mva_struct[:,0],time_b_struct,
                                               data_gap_time) #max var direction crosses zero?
 
@@ -345,6 +346,33 @@ for M in MMS:
                                                 b_eigenvals,b_eigenvecs,
                                                 b_angle_errs[-1],mva_good
                                                 )])
+        '''Fitting the data - A comparison of the data with a model flux rope'''
+        
+        ''' 
+        Pseudocode -
+        Get magnetometer data -- iterate over MMS? for each loop on each MMS 
+        satellite? 
+        
+        
+        Make them rotated to MVA coordinates with ma.coord_transformation?
+        
+        
+        Turn data into axial and azimuthal -- what data does the MMS provide? 
+        How will that allow me to convert into these directions?
+        
+        Create modeled flux rope based off of equations 1 and 2 compute for 
+        impact parameters - make sure these are normalized too!- access data 
+        and setup equations
+        
+        compute with chi-squared - for loop + basic math operations 
+        
+        
+        '''
+        
+        
+        
+        
+        
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
