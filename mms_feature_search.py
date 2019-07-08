@@ -63,7 +63,7 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
 REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=0 #chooses whether to stop at iteration 15 or not
+DEBUG=1 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -238,12 +238,12 @@ for M in MMS:
                                                         min_crossing_height)
     crossing_times=time_reg_b[crossing_indices_bz]
     #section the data and define structural extents
-    crossing_windows=ms.section_maker(crossing_indices_bz,max_indices,min_indices,
-                                   window_padding,len(bz))
+ #section the data and define structural extents
     crossing_structs,crossing_struct_times=ms.structure_extent(
                                     crossing_indices_bz,time_reg_b,
                                     crossing_signs_bz,max_indices,min_indices,
                                     len(bz))
+    crossing_windows=ms.section_maker(crossing_structs,window_padding,len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
         
