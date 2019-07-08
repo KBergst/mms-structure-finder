@@ -11,22 +11,19 @@ Does sectioning, structure categorization, etc. The meat of the analysis.
 import numpy as np
 import scipy.signal as signal #for extrema finding
 
-def section_maker(indices,maxes,mins,padding,max_index,min_index=0):
+def section_maker(structure_extents,padding,max_index,min_index=0):
     '''
     Takes a tuple of indices of instances and makes a suitably-sized index
-    window around each instance using the surrounding extrema, for plotting.
+    window around each instance using the structure size, for plotting.
     Zoom in on the crossing itself
     Possibility of missing larger structure
     Inputs:
-        indices- tuple of indices where the data array (not passed) has a 
-            zero crossing
-        maxes- tuple of indices where the data array has local maximums
-        mins- tuple of indices where the data array has local minimums
+        structure_extents- list of 2-element lists which have the form
+            [first structure index, last structure index]
         padding- the number of data points to add to each side of the window
-            beyond the nearest extrema
         max_index- the maximum index in the data array. no data beyond it!
         min_index- the minimum index in the data array. defaults to zero
-            all datum in the data array have indices between min_index 
+            all data in the data array have indices between min_index 
             and max_index
     Outputs:
         window_list- list of two-element lists, where each two-element list 
@@ -34,14 +31,10 @@ def section_maker(indices,maxes,mins,padding,max_index,min_index=0):
             for the plotting window around that crossing
     '''
     window_list=[]
-    mins_arr=np.asarray(mins)[0,:] #tuple to numpy array for using searches
-    maxes_arr=np.asarray(maxes)[0,:]
 
-    for n,current_index in enumerate(indices):
-        min_idx=np.searchsorted(mins_arr,current_index,side='left')
-        max_idx=np.searchsorted(maxes_arr,current_index,side='left')
-        index_min=min(maxes_arr[max_idx-1],mins_arr[min_idx-1])-padding
-        index_max=max(maxes_arr[max_idx],mins_arr[min_idx])+padding
+    for structure in structure_extents:
+        index_min=max(structure[0]-padding,min_index)
+        index_max=min(structure[1]+padding,max_index)
         window_list.append([index_min,index_max])
     return window_list
 
@@ -125,8 +118,14 @@ def find_maxes_mins(array,indices,directions,width,min_height):
     '''
     cleaned_indices_arr=np.array(indices) #to np array for processing purposes
     #find indices of mins and maxes for later window/structure processing
-    max_indices=signal.argrelmax(array,order=width)
-    min_indices=signal.argrelmin(array,order=width)
+    max_indices_tmp=signal.argrelmax(array,order=width)
+    min_indices_tmp=signal.argrelmin(array,order=width)
+    #filter out mins/maxes which are not above the min_height
+    max_indices=tuple(filter(lambda x: array[x] > min_height,
+                             max_indices_tmp[0]))
+    min_indices=tuple(filter(lambda x: -1*array[x] > min_height,
+                             min_indices_tmp[0]))
+    
     #filter out bad zero crossings using extrema heights
     prev_exts=np.array([])
     next_exts=np.array([])
@@ -206,8 +205,8 @@ def structure_extent(indices,times,directions,maxes,mins,max_index,
     '''
     size_list=[]
     times_list=[]
-    mins_arr=np.asarray(mins)[0,:] #tuple to numpy array for using searches
-    maxes_arr=np.asarray(maxes)[0,:]
+    mins_arr=np.asarray(mins) #tuple to numpy array for using searches
+    maxes_arr=np.asarray(maxes)
 
     for n,current_index in enumerate(indices):
         if directions[n]==1: #crossing from negative to positive

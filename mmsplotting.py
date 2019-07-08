@@ -40,13 +40,14 @@ def fitfn_pwr(x,a,b):
     
     return pwr_fn
 
-def size_fitter(x,y,fitfn):
+def size_fitter(x,y,fitfn,guess):
     '''
     wrapper for fitting the size histograms 
     Inputs:
         x- the independent variable data to be fit
         y- the dependent variable data to be fit (same dimension as x)
         fitfn- the fitting function to be used
+        guess- guess for the fit parameters (depend on the fitting function used)
     Outputs:
         x_smooth- the fit independent variables
         y_smooth- the fit dependent variables
@@ -57,7 +58,7 @@ def size_fitter(x,y,fitfn):
     x_for_fit=x[max_idx:]
     y_for_fit=y[max_idx:]
     popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit,
-                           p0=[y[max_idx],0.005])
+                           p0=guess)
     fit_bdy=[x_for_fit[0],x_for_fit[-1]]
     x_smooth=np.linspace(fit_bdy[0],fit_bdy[1],num=1000)
     y_smooth=fitfn(x_smooth,*popt)
@@ -259,6 +260,7 @@ def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
         ax.yaxis.set_minor_locator(LogLocator(subs=(0.2,0.4,0.6,0.8,)))
         ax.yaxis.set_minor_formatter(LogFormatter(labelOnlyBase=False,
                                                   minor_thresholds=(2.,5.)))
+        ax.set_ylim(bottom=0.5) #keep from plotting to ridiculous scales
         ax.set_xscale('log')
         ax.xaxis.set_major_locator(LogLocator(base=10.0))
         ax.xaxis.set_major_formatter(LogFormatter())
@@ -446,11 +448,16 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                                 or structure_type == 'push current sheets')): #do fitting
             arrays=[item[0] for item in outs]
             bin_edges=[item[1] for item in outs]
+            print(structure_type)
             for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
                 bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
                                       for i in range(len(bins)-1)])
-                x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp)
-                x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr)
+                pwr_guess=[max(arr),-1.]
+                exp_guess=[max(arr),0.005]
+                x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp,
+                                                   exp_guess)
+                x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr,
+                                                   pwr_guess)
                 basic_plotter(axs[i],x_exp,y_exp,
                               legend='Exponential fit ${} e^{{-{}x}}$' \
                               .format(f"{params_exp[0]:.2f}",
@@ -507,22 +514,26 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                       logscale=log))
     axs=[ax1,ax2,ax3,ax4,ax5] #for doing the fits
     
-    if (attr == 'size'): #do fitting
-        arrays=[item[0] for item in outs]
-        bin_edges=[item[1] for item in outs]
-        for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
-            bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
-                                  for i in range(len(bins)-1)])
-            x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp)
-            x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr)
-            basic_plotter(axs[i],x_exp,y_exp,
-                          legend='Exponential fit ${} e^{{-{}x}}$' \
-                          .format(f"{params_exp[0]:.2f}",
-                                         f"{params_exp[1]:.2f}"))
-            basic_plotter(axs[i],x_pwr,y_pwr,
-                          legend='Power law fit ${} x^{{ {} }}$' \
-                          .format(f"{params_pwr[0]:.2f}",
-                                         f"{params_pwr[1]:.2f}")) 
+#    if (attr == 'size'): #do fitting
+#        arrays=[item[0] for item in outs]
+#        bin_edges=[item[1] for item in outs]
+#        for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
+#            pwr_guess=[max(arr),-1.]
+#            exp_guess=[max(arr),0.005]
+#            bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
+#                                  for i in range(len(bins)-1)])
+#            x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp,
+#                                               exp_guess)
+#            x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr,
+#                                               pwr_guess)
+#            basic_plotter(axs[i],x_exp,y_exp,
+#                          legend='Exponential fit ${} e^{{-{}x}}$' \
+#                          .format(f"{params_exp[0]:.2f}",
+#                                         f"{params_exp[1]:.2f}"))
+#            basic_plotter(axs[i],x_pwr,y_pwr,
+#                          legend='Power law fit ${} x^{{ {} }}$' \
+#                          .format(f"{params_pwr[0]:.2f}",
+#                                         f"{params_pwr[1]:.2f}")) 
     
     suffix=''
     if log:

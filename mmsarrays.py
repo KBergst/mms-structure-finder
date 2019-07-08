@@ -90,7 +90,7 @@ def interval_mask(series,min_val,max_val):
         mask- a boolean numpy array returning 1 where the series element is 
             between the given max/min values, and 0 where it is not
     ''' 
-    mask=np.logical_and(series > min_val,series < max_val)
+    mask=np.logical_and(series >= min_val,series <= max_val)
     return mask    
 
 def find_avg_signs(array):

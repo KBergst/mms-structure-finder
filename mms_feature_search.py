@@ -62,8 +62,8 @@ nbins=30 #number of bins for the size histograms
 window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
-REPLOT=0 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=0 #chooses whether to stop at iteration 15 or not
+REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
+DEBUG=1 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -134,7 +134,7 @@ for M in MMS:
               r'Jy GSM (microA/m^2)'  ]
     v_labels=['MMS GSM velocities vs. time','Time',
                r'Vx GSM (km/s)']
-    v_legend=['$v_e$ from curlometer','$v_e$ rom moments data',
+    v_legend=['$v_e$ from curlometer','$v_e$ from moments data',
                '$v_i$ from moments data']
     n_labels=['MMS'+M+' density vs. time','Time','density cm^(-3)']
     n_legend=['ion density','electron density','smoothed electron density',
@@ -170,7 +170,7 @@ for M in MMS:
                                                des_list):
         #create full paths
         b_file=os.path.join(path,data_dir,M,b_stub)
-        j_file=os.path.join(path,data_dir,M,j_stub)
+        j_file=j_stub
         dis_file=os.path.join(path,data_dir,M,dis_stub)
         des_file=os.path.join(path,data_dir,M,des_stub)
         #read and process b-field data
@@ -236,12 +236,11 @@ for M in MMS:
                                                         min_crossing_height)
     crossing_times=time_reg_b[crossing_indices_bz]
     #section the data and define structural extents
-    crossing_windows=ms.section_maker(crossing_indices_bz,max_indices,min_indices,
-                                   window_padding,len(bz))
     crossing_structs,crossing_struct_times=ms.structure_extent(
                                     crossing_indices_bz,time_reg_b,
                                     crossing_signs_bz,max_indices,min_indices,
                                     len(bz))
+    crossing_windows=ms.section_maker(crossing_structs,window_padding,len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
         
@@ -392,10 +391,10 @@ for M in MMS:
 #                            plot_limits,legend=n_legend[3]) #plot ni error for comparison
 #            tseries_plotter(fig,ax3,time_ne_cut,ne_err_cut,n_labels,
 #                            plot_limits,legend=n_legend[4]) #plot ne error for comparison
-            mmsp.tseries_plotter(fig,ax4,time_j_cut,vex_cut,v_labels,plot_limits,
-                          legend=v_legend[0])#plt vex from curlometer
-            mmsp.tseries_plotter(fig,ax4,time_ne_cut,vex_fpi_cut,v_labels,
-                            plot_limits,legend=v_legend[1])#plot vex from moments
+            mmsp.tseries_plotter(fig,ax4,time_j_cut,vex_cut,v_labels,
+                                 plot_limits,legend=v_legend[0])#plt v from curlometer
+#            mmsp.tseries_plotter(fig,ax4,time_ne_cut,vex_fpi_cut,v_labels,
+#                            plot_limits,legend=v_legend[3])#plot vex from moments
             mmsp.tseries_plotter(fig,ax4,time_ni_cut,vix_cut,v_labels,plot_limits,
                           legend=v_legend[2])#plot vi from moments    
             mmsp.tseries_plotter(fig,ax5,time_ni_cut,vix_fluct,fluct_labels,
