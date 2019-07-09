@@ -15,6 +15,7 @@ import plasmaparams as pp
 import mmsdata as md
 import mmsarrays as ma
 import mmsstructs as ms
+import mmsfitting_matt as mf
 
 #canned packages
 import numpy as np
@@ -315,7 +316,6 @@ for M in MMS:
             mva_good=False
             
         b_mva_struct=ma.coord_transformation(b_field_struct[:,0:3],b_eigenvecs)
-        print(b_mva_struct)
         valid_zero_crossings=ms.find_crossings(b_mva_struct[:,0],time_b_struct,
                                               data_gap_time) #max var direction crosses zero?
 
@@ -368,11 +368,16 @@ for M in MMS:
         
         
         '''
+        minchi, impParam = mf.chisquared1(b_mva_struct)
+        if minchi == "event rejected":
+            print ("The event was rejected")
+        else:
+            print ("The event was accepted. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam)) 
         
         
         
         
-        
+    '''
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
@@ -463,8 +468,9 @@ for M in MMS:
                         plot_out_name+str(i)+".png"), bbox_inches='tight')
             plt.close(fig='all')
         
-            if (i % 30 == 0):
-                ''' Plot larger window to check for larger structures '''
+        if (i % 30 == 0):
+                 Plot larger window to check for larger structures 
+                
                 larger_window=ms.larger_section_maker(crossing_windows[i],
                                                    window_scale_factor,
                                                    len(bz))   
@@ -485,7 +491,7 @@ for M in MMS:
                            edges=crossing_struct_times[i],horiz=0.)   
                 fig.savefig(os.path.join(scales_out_directory,'MMS'+M+'_'+ \
                             plot_out_name+str(i)+".png"), bbox_inches='tight')
-                plt.close(fig='all')
+                plt.close(fig='all') '''
             
 #        tracker.print_diff() #for detecting memory leaks
 
