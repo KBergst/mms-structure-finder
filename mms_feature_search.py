@@ -372,7 +372,7 @@ for M in MMS:
         if minchi == "event rejected":
             print ("The event was rejected")
         else:
-            print ("The event was accepted. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam)) 
+            print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam)) 
         
         
         

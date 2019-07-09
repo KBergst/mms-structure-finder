@@ -60,11 +60,10 @@ def normalize(oldArray): #makes all vectors a ratio of the largest magnitude vec
         if magnitude > maxMagnitude:
             maxMagnitude = magnitude
     for x in range(len(oldArray)): #converts all values into ratio of maximum magnitude
-        magnitude = math.sqrt(oldArray[x][0] ** 2 + (oldArray[x][1] ** 2) + (oldArray[x][2] ** 2))    
-        ratio = magnitude / maxMagnitude
-        normalized[x][0] = ratio
-        normalized[x][1] = ratio
-        normalized[x][2] = ratio 
+        magnitude = math.sqrt(oldArray[x][0] ** 2 + (oldArray[x][1] ** 2) + (oldArray[x][2] ** 2))         
+        normalized[x][0] = oldArray[x][0] / maxMagnitude
+        normalized[x][1] = oldArray[x][1] / maxMagnitude
+        normalized[x][2] = oldArray[x][2] / maxMagnitude
     return normalized 
         
     
@@ -95,8 +94,46 @@ def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 
     else:
         return minChiSquared, impactParameter 
 
-'''
-def chiSquared2(RectArray): #No conversion is needed for this one
-    RectArray = normalize(RectArray) '''
+
+def getDist(imp_param,numOfDataPoints):
+    l = math.sqrt(1 - (imp_param ** 2)) #half of the chord
+    lengthOfChord = 2 * l
+    dist = lengthOfChord / numOfDataPoints
+    return l, dist
+
+
+def getTheta(imp_param, numOfDataPoints, index, l, dist):
+    theta = 0
+    half = math.ceil(numOfDataPoints / 2)
+    if (index > half): #right side
+        theta = math.atan(((index - half) * dist )/imp_param)
+    else:
+        theta = math.atan((l - (dist * index))/imp_param)
+    return theta
+        
+    
+def getComponents(theta, b_azi):
+    b_model_min = b_azi * math.cos(theta)
+    b_model_max = b_azi * math.sin(theta)
+    return b_model_min, b_model_max
+
+    
+def chiSquared2(RectArray, imp_Param): #No conversion is needed for this one
+    RectArray = normalize(RectArray)
+    numOfData = len(RectArray)
+    chiSquare = 0
+    b_axial, b_azim = modelFluxRope(imp_Param)
+    l, dist = getDist(imp_Param, numOfData)
+    for x in range(numOfData):
+        theta = getTheta(imp_Param, numOfData, x, l, dist)
+        b_model_min, b_model_max = getComponents(theta, b_azim)
+        chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axial) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
+    chiSquare = (3 * numOfData) - 4
+    return chiSquare
+
+
+
+        
+    
     
     
