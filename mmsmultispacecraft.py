@@ -70,6 +70,10 @@ def barycentric_vectors(spacecrafts_coords):
     Inputs:
         spacecrafts_coords- a dictionary with four values, each consisting of 
             an array of spacecraft coordinates of form (datlength,3)
+    Outputs:
+        k_vec- a dictionary with four values, each consisting of an array of 
+            reciprocal vectors of the form (datlength,3)
+        
     '''
     k_vec={}
     
@@ -87,7 +91,8 @@ def barycentric_vectors(spacecrafts_coords):
         denom=np.sum(r_ji*r_jk_x_r_jl,axis=1)
         k_vec[scs[i]]=r_jk_x_r_jl/denom[:,None] #allows division of the matrix by the vector in the sensical way
 
-    return k_vec        
+    return k_vec   
+
                     
                 
             
