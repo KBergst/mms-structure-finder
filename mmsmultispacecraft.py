@@ -130,4 +130,35 @@ def spatial_gradient(vecs,spacecrafts_coords):
       
     return grads
         
+def MDD(b_fields,spacecrafts_coords):
+    '''
+    Does a Minimum Directional Derivative (MDD) analysis on magnetic field data
+    (see Shi et al. 2005 for reference)
+    Inputs:
+        b_fields- a dictionary with four values, each consisting of an array
+            of magnetic field vectors from a particular spacecraft of form 
+            (datlength,3)
+        spacecrafts_coords- a dictionary with four values, each consisting of 
+            an array of spacecraft coordinates of form (datlength,3)
+    Outputs:
+        all_eigenvals-arrays of the three eigenvalues from the analysis
+            ordered from largest to smallest in shape (datlength,3)
+        all_eigenvecs- list of arrays of the three eigenvectors
+    '''
+    b_grads=spatial_gradient(b_fields,spacecrafts_coords)
+    
+    all_eigenvals=np.transpose(np.array([[],[],[]]))
+    all_eigenvecs=[]
+    for grad_b in b_grads:
+        L=grad_b @ np.transpose(grad_b)
         
+        #compute eigenvectors and values of Mb, and sort them by decreasing magnitude
+        tmp1,tmp2=np.linalg.eig(L) #column tmp2[:,i] is the eigenvector
+        idx=tmp1.argsort()[::-1] #default sort is small to big, so need to reverse
+        eigenvals=tmp1[idx].reshape(1,3)
+        eigenvecs=tmp2[:,idx]
+        
+        all_eigenvals=np.concatenate((all_eigenvals,eigenvals),axis=0)
+        all_eigenvecs.append(eigenvecs)
+    
+    return all_eigenvals, all_eigenvecs    

@@ -174,7 +174,8 @@ def window_squarer(data1,data2):
     
     return xlims,ylims
     
-def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
+def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None,
+                    logscale=False):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -192,6 +193,7 @@ def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
             lims[0] is the minimum x-value 
             lims[1] is the maximum x-value
         legend- possible string for the legend of this data. Default is None
+        logscale- display y axis on a log scale. Default is False.
     Outputs:
         out- the ax.plot instance used
     '''
@@ -204,6 +206,14 @@ def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None):
     out = ax.plot(data1, data2,label=legend)
     if not (legend is None):
         ax.legend(edgecolor='black')
+    
+    if logscale:
+        ax.set_yscale('log') #try log scale
+        ax.yaxis.set_major_locator(LogLocator(base=10.0))
+        ax.yaxis.set_major_formatter(LogFormatter())
+        ax.yaxis.set_minor_locator(LogLocator(subs=(0.2,0.4,0.6,0.8,)))
+        ax.yaxis.set_minor_formatter(LogFormatter(labelOnlyBase=False,
+                                                  minor_thresholds=(2.,5.)))
         
     return out
 

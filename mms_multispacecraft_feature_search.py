@@ -50,7 +50,7 @@ data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify
 extrema_width=10 #number of points to compare on each side to declare an extrema
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 
-DEBUG=1 #chooses whether to stop at iteration 15 or not
+DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -89,6 +89,10 @@ TT_time_ni={}
 
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
+
+#legends, etc. for plotting
+eigenval_label=['Eigenvalues from MDD','Time',r'$\lambda$']
+eigenval_legend=[r'$\lambda_{max}$',r'$\lambda_{med}$',r'$\lambda_{min}$']
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -188,17 +192,6 @@ for i in range(len(crossing_indices_M1)):
     if(bad_struct): #not able to do multispacecraft techniques
         continue
       
-    #plot it (temp feature- just wanna look now)
-    fig,(ax1,ax2)=plt.subplots(2)
-    print(i)
-    for M in MMS:
-        bz=b_field_struct[M][:,2]
-        mmsp.tseries_plotter(fig,ax1,time_struct_b[M],bz,
-                             labels=['Original','',''],
-                             lims=[min(time_struct_b[M]),
-                                   max(time_struct_b[M])],
-                             legend=M)
-        
     #sync all B-field data to MMS1 cadence
     b_field_struct_sync={}
     rad_struct_sync={}
@@ -207,18 +200,35 @@ for i in range(len(crossing_indices_M1)):
                                                    time_struct_b[MMS[0]])
         rad_struct_sync[M]=msc.bartlett_interp(rad[M],time_reg_b[M],
                                                time_struct_b[MMS[0]])
+
+
+    #find spatial gradients
+    all_eigenvals,all_eigenvecs=msc.MDD(b_field_struct_sync,rad_struct_sync)
+    
+    #plot it 
+    fig,(ax1,ax2)=plt.subplots(2)
+    #plot joined and smoothed B-fields
+    for M in MMS:  
         bz=b_field_struct_sync[M][:,2]
-        mmsp.tseries_plotter(fig,ax2,time_struct_b[MMS[0]],bz,
+        mmsp.tseries_plotter(fig,ax1,time_struct_b[MMS[0]],bz,
                              labels=['Time sync','Time','B (nT)'],
                              lims=[min(time_struct_b[MMS[0]]),
                                    max(time_struct_b[MMS[0]])],
-                             legend=M)
-    plt.show()  
+                             legend=M) 
+    #plot the eigenvalues
+    for j in range(len(all_eigenvals[0,:])):
+        eigenvals=all_eigenvals[:,j]
+        mmsp.tseries_plotter(fig,ax2,time_struct_b[MMS[0]],eigenvals,
+                             labels=eigenval_label,
+                             lims=[min(time_struct_b[MMS[0]]),
+                                   max(time_struct_b[MMS[0]])],
+                             legend=eigenval_legend[j],logscale=True)        
+    
+    fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
+                            plot_out_name+str(i)+".png"), bbox_inches='tight')
     plt.close(fig="all")                                   
 
-    #find spatial gradients
-    test=msc.spatial_gradient(b_field_struct_sync,rad_struct_sync)
-    sys.exit()    
+   
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start))) 
