@@ -56,14 +56,15 @@ def normalize(oldArray): #makes all vectors a ratio of the largest magnitude vec
     row, column = len(oldArray), len(oldArray[0]) #Gets the Height and Width of Array for conversion
     normalized = [[0 for x in range(column)] for y in range(row)] #Initializes the return array as empty
     for x in range(len(oldArray)): #searches for maximum magnitude
-        magnitude = math.sqrt(oldArray[x][0] ** 2 + (oldArray[x][1] ** 2) + (oldArray[x][2] ** 2))    
+        magnitude = math.sqrt((oldArray[x][0] ** 2) + (oldArray[x][1] ** 2) + (oldArray[x][2] ** 2))    
         if magnitude > maxMagnitude:
             maxMagnitude = magnitude
     for x in range(len(oldArray)): #converts all values into ratio of maximum magnitude
-        magnitude = math.sqrt(oldArray[x][0] ** 2 + (oldArray[x][1] ** 2) + (oldArray[x][2] ** 2))         
-        normalized[x][0] = oldArray[x][0] / maxMagnitude
-        normalized[x][1] = oldArray[x][1] / maxMagnitude
-        normalized[x][2] = oldArray[x][2] / maxMagnitude
+        magnitude = math.sqrt(oldArray[x][0] ** 2 + (oldArray[x][1] ** 2) + (oldArray[x][2] ** 2))   
+        ratio = magnitude / maxMagnitude
+        normalized[x][0] = oldArray[x][0] * (ratio/magnitude)
+        normalized[x][1] = oldArray[x][1] * (ratio/magnitude)
+        normalized[x][2] = oldArray[x][2] * (ratio/magnitude)
     return normalized 
         
     
@@ -88,8 +89,10 @@ def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 
         elif chiSquaredValue < minChiSquared:
             minChiSquared = chiSquaredValue
             impactParameter = imp 
+    print("The impact parameter is" + str(impactParameter))
     if impactParameter > 0.5:
-        minChiSquared = "event rejected"
+        print ("false")
+        minChiSquared = False
         return minChiSquared, impactParameter
     else:
         return minChiSquared, impactParameter 

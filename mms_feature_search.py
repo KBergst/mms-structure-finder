@@ -118,6 +118,7 @@ time_reg_jcurl=np.array([])
 
 #repeating for each satellite
 for M in MMS:
+    print("One Satellite")
     MMS_structure_counts[M]={type_dict[0]: 0,type_dict[1]: 0,
                              type_dict[2]: 0,
                              type_dict[3]: 0,
@@ -245,7 +246,7 @@ for M in MMS:
                                     len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
-        
+        print("one crossing")    
         if (i==16 and DEBUG): #debug option
             #check how long the code took to run
             end=time.time()
@@ -369,15 +370,19 @@ for M in MMS:
         
         '''
         minchi, impParam = mf.chisquared1(b_mva_struct)
-        if minchi == "event rejected":
+        if (minchi == False):
             print ("The event was rejected")
         else:
             print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam)) 
+'''        chiSquare2 = mf.chiSquared2(b_mva_struct, impParam)
+        print ("Second chi-square test value" + chiSquare2)
         
         
         
         
-    '''
+        
+        
+
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
