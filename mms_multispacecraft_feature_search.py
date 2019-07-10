@@ -25,6 +25,7 @@ import datetime as dt
 import sys #for debugging
 #from pympler.tracker import SummaryTracker #for tracking memory usage
 import scipy.constants as const
+import scipy.interpolate as interp
 import time #for checking code runspeed
 import os #for generalization to all systems
 
@@ -49,7 +50,7 @@ data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify
 extrema_width=10 #number of points to compare on each side to declare an extrema
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 
-DEBUG=0 #chooses whether to stop at iteration 15 or not
+DEBUG=1 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -79,6 +80,7 @@ mmsp.directory_ensurer(timeseries_out_directory)
 #initialize variables, dictionaries, etc.
 MMS=[str(x) for x in range(1,5)]
 b_field={} #dictionary that will contain all the different magnetic field data
+rad={} #dictionary holding resampled spacecraft position data (same time cadence as that satellite's b-field)
 TT_time_b={}
 time_reg_b={}
 ni={}
@@ -102,6 +104,7 @@ for M in MMS:
     des_list=md.filenames_get(os.path.join(path,data_dir,M,des_names_file))
     
     b_field[M]=np.transpose(np.array([[],[],[],[]])) #for all B field data
+    rad[M]=np.transpose(np.array([[],[],[]])) 
     TT_time_b[M]=np.array([])
     ni[M]=np.array([])
     vi[M]=np.transpose(np.array([[],[],[]])) #for all vi data 
@@ -113,10 +116,16 @@ for M in MMS:
         dis_file=os.path.join(path,data_dir,M,dis_stub)
         des_file=os.path.join(path,data_dir,M,des_stub)
         #read and process b-field data
-        TT_time_tmp,temp=md.get_cdf_var(b_file,['Epoch',
-                                             'mms'+M+'_fgm_b_gsm_brst_l2'])
+        TT_time_tmp,TT_radtime_tmp,temp,temp2=md.get_cdf_var(b_file,['Epoch',
+                                                                     'Epoch_state',
+                                             'mms'+M+'_fgm_b_gsm_brst_l2',
+                                             'mms'+M+'_fgm_r_gsm_brst_l2'])
         b_field_tmp=temp.reshape(temp.size//4,4) #// returns integer output
+        rad_tmp=temp2.reshape(temp2.size//4,4)[:,0:3] #EXCLUDE the total radius
+        tmp_rad_spline=interp.CubicSpline(TT_radtime_tmp,rad_tmp) #interpolate position data
+        rad_btime_tmp=tmp_rad_spline(TT_time_tmp) #interpolate position to b-field timestamps
         b_field[M]=np.concatenate((b_field[M],b_field_tmp),axis=0)
+        rad[M]=np.concatenate((rad[M],rad_btime_tmp),axis=0)
         TT_time_b[M]=np.concatenate((TT_time_b[M],TT_time_tmp))
         #read and process the ni,vi data
         TT_time_tmp,ni_tmp,ni_err_tmp,temp=md.get_cdf_var(dis_file,
@@ -175,8 +184,6 @@ for i in range(len(crossing_indices_M1)):
                                       time_struct_b[MMS[n]],data_gap_time)
         if len(is_crossing) is 0: #no crossing for this satellite
             bad_struct=True
-            print(i)
-            print(MMS[n])
                 
     if(bad_struct): #not able to do multispacecraft techniques
         continue
@@ -194,17 +201,23 @@ for i in range(len(crossing_indices_M1)):
         
     #sync all B-field data to MMS1 cadence
     b_field_struct_sync={}
+    rad_struct_sync={}
     for M in MMS:
         b_field_struct_sync[M]=msc.bartlett_interp(b_field[M],time_reg_b[M],
                                                    time_struct_b[MMS[0]])
+        rad_struct_sync[M]=msc.bartlett_interp(rad[M],time_reg_b[M],
+                                               time_struct_b[MMS[0]])
         bz=b_field_struct_sync[M][:,2]
         mmsp.tseries_plotter(fig,ax2,time_struct_b[MMS[0]],bz,
-                             labels=['Time sync','',''],
+                             labels=['Time sync','Time','B (nT)'],
                              lims=[min(time_struct_b[MMS[0]]),
                                    max(time_struct_b[MMS[0]])],
                              legend=M)
     plt.show()  
     plt.close(fig="all")                                   
+
+    #find spatial gradients
+    test=msc.barycentric_vectors(rad_struct_sync)
         
 #check how long the code took to run
 end=time.time()

@@ -62,6 +62,35 @@ def bartlett_interp(array,times,new_times,two_dt_s=1/128,two_DT_s=1/128,q=1):
         new_array=np.concatenate((new_array,new_values))
         
     return new_array
+
+def barycentric_vectors(spacecrafts_coords):
+    '''
+    Takes the positions of a tetrahedra of spacecraft (time synced) and
+    calculates the reciprocal vectors for each spacecraft
+    Inputs:
+        spacecrafts_coords- a dictionary with four values, each consisting of 
+            an array of spacecraft coordinates of form (datlength,3)
+    '''
+    k_vec={}
+    
+    #calculate spacecraft separation vectors
+    scs=list(spacecrafts_coords.keys())
+    r_scs=list(spacecrafts_coords.values()) #in python 3.7 and up this should keep the same ordering
+    for i in range(len(r_scs)):
+        j=(i+1) %4
+        k=(i+2) %4
+        l=(i+3) %4
+        r_jk=r_scs[k]-r_scs[j]
+        r_jl=r_scs[l]-r_scs[j]
+        r_ji=r_scs[i]-r_scs[j]
+        r_jk_x_r_jl=np.cross(r_jk,r_jl)
+        denom=np.sum(r_ji*r_jk_x_r_jl,axis=1)
+        k_vec[scs[i]]=r_jk_x_r_jl/denom[:,None] #allows division of the matrix by the vector in the sensical way
+
+    return k_vec        
+                    
+                
+            
         
         
         
