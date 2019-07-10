@@ -103,7 +103,7 @@ for M in MMS:
     dis_list=md.filenames_get(os.path.join(path,data_dir,M,dis_names_file))
     des_list=md.filenames_get(os.path.join(path,data_dir,M,des_names_file))
     
-    b_field[M]=np.transpose(np.array([[],[],[],[]])) #for all B field data
+    b_field[M]=np.transpose(np.array([[],[],[]])) #for all B field data
     rad[M]=np.transpose(np.array([[],[],[]])) 
     TT_time_b[M]=np.array([])
     ni[M]=np.array([])
@@ -120,7 +120,7 @@ for M in MMS:
                                                                      'Epoch_state',
                                              'mms'+M+'_fgm_b_gsm_brst_l2',
                                              'mms'+M+'_fgm_r_gsm_brst_l2'])
-        b_field_tmp=temp.reshape(temp.size//4,4) #// returns integer output
+        b_field_tmp=temp.reshape(temp.size//4,4)[:,0:3] #EXCLUDE the total b-field
         rad_tmp=temp2.reshape(temp2.size//4,4)[:,0:3] #EXCLUDE the total radius
         tmp_rad_spline=interp.CubicSpline(TT_radtime_tmp,rad_tmp) #interpolate position data
         rad_btime_tmp=tmp_rad_spline(TT_time_tmp) #interpolate position to b-field timestamps
@@ -217,8 +217,8 @@ for i in range(len(crossing_indices_M1)):
     plt.close(fig="all")                                   
 
     #find spatial gradients
-    test=msc.barycentric_vectors(rad_struct_sync)
-        
+    test=msc.spatial_gradient(b_field_struct_sync,rad_struct_sync)
+    sys.exit()    
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start))) 

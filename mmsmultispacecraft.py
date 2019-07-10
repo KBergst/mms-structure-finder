@@ -77,25 +77,57 @@ def barycentric_vectors(spacecrafts_coords):
     '''
     k_vec={}
     
-    #calculate spacecraft separation vectors
+    #calculate reciprocal vectors
     scs=list(spacecrafts_coords.keys())
     r_scs=list(spacecrafts_coords.values()) #in python 3.7 and up this should keep the same ordering
     for i in range(len(r_scs)):
+        #cyclic permutation of spacecraft
         j=(i+1) %4
         k=(i+2) %4
         l=(i+3) %4
+        #determination of spacecraft separation vectors
         r_jk=r_scs[k]-r_scs[j]
         r_jl=r_scs[l]-r_scs[j]
         r_ji=r_scs[i]-r_scs[j]
+        #calculation reciprocal vector for spacecraft scs[i]
         r_jk_x_r_jl=np.cross(r_jk,r_jl)
         denom=np.sum(r_ji*r_jk_x_r_jl,axis=1)
         k_vec[scs[i]]=r_jk_x_r_jl/denom[:,None] #allows division of the matrix by the vector in the sensical way
 
-    return k_vec   
+    return k_vec  
 
-                    
-                
-            
-        
+def spatial_gradient(vecs,spacecrafts_coords):
+    '''
+    Calculates a linear estimate of the spatial gradient of a vector quantity
+    using the method outlined in Analysis Methods for Multi-Spacecraft Data, 
+    Chapter 14.
+    Inputs:
+        vecs- a dictionary with four values, each consisting of an array
+            of vector quantites from a particular spacecraft of form (datlength,3)
+        spacecrafts_coords- a dictionary with four values, each consisting of 
+            an array of spacecraft coordinates of form (datlength,3)    
+    Outputs:
+        grads- a list of the gradient tensors for the vector quantity given,
+            at each timetag.
+    '''
+    #find reciprocal vectors
+    k_vecs=barycentric_vectors(spacecrafts_coords)
+    grads=[]
+
+    scs=list(spacecrafts_coords.keys())
+    #calculate the spatial gradient- likely a faster way exists, will need to see
+    for n in range(len(spacecrafts_coords[scs[0]][:,0])): 
+        grad=np.zeros((3,3))                   
+        for i in range(len(scs)):
+            #reshape the n'th vector for scs[i] for matrix multiplying
+            vec=vecs[scs[i]][n,:]
+            vec_T=vec.reshape(1,3)
+            #add the spacecraft's contribution to the total spatial gradient
+            k_vec=(k_vecs[scs[i]][n,:]).reshape(3,1)
+            grad=grad+k_vec @ vec_T
+        #add spatial gradient to list of spatial gradients
+        grads.append(grad)          
+      
+    return grads
         
         
