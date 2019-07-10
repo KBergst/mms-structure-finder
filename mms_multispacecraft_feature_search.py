@@ -15,6 +15,7 @@ import plasmaparams as pp
 import mmsdata as md
 import mmsarrays as ma
 import mmsstructs as ms
+import mmsmultispacecraft as msc
 
 #canned packages
 import numpy as np
@@ -131,13 +132,6 @@ for M in MMS:
     #populate other necessary data dictionaries
     time_reg_b[M]=np.array(mt.TTtime2datetime(TT_time_b[M])) #time as datetime obj np arr
 
-'''
-idea for selection algorithm:
-    - change the maxima/minima so that they must be above the threshold
-    - define inside structure to be the maximum time period that fits between
-        all four satellites' structure determination algortithms
-    - perform multispacecraft techniques only on the inside-structure part
-'''
 
 #find potential structure candidates from MMS 1
 bz_M1=b_field[MMS[0]][:,2]
@@ -170,6 +164,7 @@ for i in range(len(crossing_indices_M1)):
                                               crossing_structs[i][1]]
     struct_endpts=[time_struct_b[MMS[0]][0],time_struct_b[MMS[0]][-1]]
     
+    #determine structures for multispacecraft techniques
     bad_struct=False #True if all 4 spacecraft do not see the structure
     for n in range(1,4): #over MMS 2,3,4
         struct_mask=ma.interval_mask(time_reg_b[MMS[n]],struct_endpts[0],
@@ -182,10 +177,39 @@ for i in range(len(crossing_indices_M1)):
             bad_struct=True
             print(i)
             print(MMS[n])
-    if(bad_struct):
+                
+    if(bad_struct): #not able to do multispacecraft techniques
         continue
+      
+    #plot it (temp feature- just wanna look now)
+    fig,(ax1,ax2)=plt.subplots(2)
+    print(i)
+    for M in MMS:
+        bz=b_field_struct[M][:,2]
+        mmsp.tseries_plotter(fig,ax1,time_struct_b[M],bz,
+                             labels=['Original','',''],
+                             lims=[min(time_struct_b[M]),
+                                   max(time_struct_b[M])],
+                             legend=M)
         
+    #sync all B-field data to MMS1 cadence
+    b_field_struct_sync={}
+    for M in MMS:
+        b_field_struct_sync[M]=msc.bartlett_interp(b_field[M],time_reg_b[M],
+                                                   time_struct_b[MMS[0]])
+        bz=b_field_struct_sync[M][:,2]
+        mmsp.tseries_plotter(fig,ax2,time_struct_b[MMS[0]],bz,
+                             labels=['Time sync','',''],
+                             lims=[min(time_struct_b[MMS[0]]),
+                                   max(time_struct_b[MMS[0]])],
+                             legend=M)
+    plt.show()  
+    plt.close(fig="all")                                   
         
 #check how long the code took to run
 end=time.time()
-print("Code executed in "+str(dt.timedelta(seconds=end-start)))    
+print("Code executed in "+str(dt.timedelta(seconds=end-start))) 
+
+#To-do list:
+#TODO: improve mechanism used to determine what time section to do the multi-spacecraft tech on
+    #right now just what MMS1 says is the structure   
