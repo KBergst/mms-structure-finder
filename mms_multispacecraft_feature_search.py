@@ -11,7 +11,7 @@ Hope is to determine accurate structure speeds, invariant directions, etc.
 #mms-specific in-house modules
 import mmsplotting as mmsp
 import mmstimes as mt
-import plasmaparams as pp
+#import plasmaparams as pp
 import mmsdata as md
 import mmsarrays as ma
 import mmsstructs as ms
@@ -20,11 +20,11 @@ import mmsmultispacecraft as msc
 #canned packages
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
+#import matplotlib as mpl
 import datetime as dt
 import sys #for debugging
 #from pympler.tracker import SummaryTracker #for tracking memory usage
-import scipy.constants as const
+#import scipy.constants as const
 import scipy.interpolate as interp
 import time #for checking code runspeed
 import os #for generalization to all systems
@@ -51,6 +51,7 @@ extrema_width=10 #number of points to compare on each side to declare an extrema
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 
 DEBUG=0 #chooses whether to stop at iteration 15 or not
+REPLOT=0 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -202,31 +203,46 @@ for i in range(len(crossing_indices_M1)):
                                                time_struct_b[MMS[0]])
 
 
-    #find spatial gradients
+    #do MDD analysis
     all_eigenvals,all_eigenvecs=msc.MDD(b_field_struct_sync,rad_struct_sync)
+    dims_struct,tmp,D_struct,junk=msc.structure_diml(all_eigenvals)
     
-    #plot it 
-    fig,(ax1,ax2)=plt.subplots(2)
-    #plot joined and smoothed B-fields
-    for M in MMS:  
-        bz=b_field_struct_sync[M][:,2]
-        mmsp.tseries_plotter(fig,ax1,time_struct_b[MMS[0]],bz,
-                             labels=['Time sync','Time','B (nT)'],
-                             lims=[min(time_struct_b[MMS[0]]),
-                                   max(time_struct_b[MMS[0]])],
-                             legend=M) 
-    #plot the eigenvalues
-    for j in range(len(all_eigenvals[0,:])):
-        eigenvals=all_eigenvals[:,j]
-        mmsp.tseries_plotter(fig,ax2,time_struct_b[MMS[0]],eigenvals,
-                             labels=eigenval_label,
-                             lims=[min(time_struct_b[MMS[0]]),
-                                   max(time_struct_b[MMS[0]])],
-                             legend=eigenval_legend[j],logscale=True)        
-    
-    fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
-                            plot_out_name+str(i)+".png"), bbox_inches='tight')
-    plt.close(fig="all")                                   
+    #check dimensionality (will do more carefully later, just to see for now)
+    print(i)
+    if(dims_struct[0]):
+        print("1D structure")
+    if(dims_struct[1]):
+        print("2D structure")
+    if(dims_struct[2]):
+        print("3D structure")
+    print(junk)
+    print(D_struct)
+
+    #do STD analysis
+   
+    if(REPLOT):
+        #plot it 
+        fig,(ax1,ax2)=plt.subplots(2)
+        #plot joined and smoothed B-fields
+        for M in MMS:  
+            bz=b_field_struct_sync[M][:,2]
+            mmsp.tseries_plotter(fig,ax1,time_struct_b[MMS[0]],bz,
+                                 labels=['Time sync','Time','B (nT)'],
+                                 lims=[min(time_struct_b[MMS[0]]),
+                                       max(time_struct_b[MMS[0]])],
+                                 legend=M) 
+        #plot the eigenvalues
+        for j in range(len(all_eigenvals[0,:])):
+            eigenvals=all_eigenvals[:,j]
+            mmsp.tseries_plotter(fig,ax2,time_struct_b[MMS[0]],eigenvals,
+                                 labels=eigenval_label,
+                                 lims=[min(time_struct_b[MMS[0]]),
+                                       max(time_struct_b[MMS[0]])],
+                                 legend=eigenval_legend[j],logscale=True)        
+        
+        fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
+                                plot_out_name+str(i)+".png"), bbox_inches='tight')
+        plt.close(fig="all")                                   
 
    
 #check how long the code took to run

@@ -162,3 +162,73 @@ def MDD(b_fields,spacecrafts_coords):
         all_eigenvecs.append(eigenvecs)
     
     return all_eigenvals, all_eigenvecs    
+
+def structure_diml(mdd_eigenvals):
+    '''
+    determines the dimensionality of a structure based on its eigenvalues from 
+    MDD analysis and also returns its invariant directions (if applicable).
+    
+    This function is ESPECIALLY open to change, as there are many different
+    conventions for interpreting the results of MDD, and none seem to have
+    consensus. I'll probably try a bunch of different ones to see what I like.
+    Inputs:
+        mdd_eigenvals-arrays of the three eigenvalues from the analysis
+            ordered from largest to smallest in shape (datlength,3)
+    Outputs:
+        dims- list of three dimensions- true if the code thinks it is that
+            dimensionality and false if the code thinks it is not that 
+            dimensionality.
+        multi_diml- returns True if more than one element of dims is True.
+        D_avg- the average D1,2,3 values calculated (as per Rezeau et al. 2018)
+        [D_2Davg,D_3Davg]- list containing the selection parameters from the 
+            Sun et al. 2019 method. For troubleshooting the method, etc.
+    '''
+    dims=[False,False,False] #dims[0],[1],[2] refer to 1,2, and 3d respectively
+    # Rezeau et al. 2018 method (might fold all D values into an array at some point)
+    D=[]
+    D_avg=[]
+    D.append((mdd_eigenvals[:,0]-mdd_eigenvals[:,1])/mdd_eigenvals[:,0])
+    D.append((mdd_eigenvals[:,1]-mdd_eigenvals[:,2])/mdd_eigenvals[:,0])
+    D.append(mdd_eigenvals[:,2]/mdd_eigenvals[:,0])
+    D_avg.append(np.average(D[0]))
+    D_avg.append(np.average(D[1]))
+    D_avg.append(np.average(D[2]))
+    
+    #Sun et al. 2019 method
+    D_2D=np.sqrt(mdd_eigenvals[:,1]/mdd_eigenvals[:,0])
+    D_3D=np.sqrt(mdd_eigenvals[:,2]/mdd_eigenvals[:,0])
+    D_2D_avg=np.average(D_2D)
+    D_3D_avg=np.average(D_3D)
+    
+    #combine for the method:
+    if (D_avg[0]>0.7 or D_2D_avg < 0.4):
+        dims[0]=True
+    if (D_avg[1]>0.7 or (D_2D_avg > 0.4 and D_3D_avg < 0.4)):
+        dims[1]=True
+    if (D_avg[2]>0.7 or D_3D_avg > 0.4):
+        dims[2]=True
+        
+    if sum(dims)>1:
+        multi_diml=True
+    else:
+        multi_diml=False
+        
+    return dims,multi_diml,D_avg,[D_2D_avg,D_3D_avg]
+
+def STD(b_fields,spacecrafts_coords,mdd_eigenvals,mdd_eigenvecs,dims):
+    '''
+    determines the velocity of 1D, 2D and 3D structures using the
+    Spatio-Temporal Difference (STD) method, as outlined in Shi et al. 2006.
+    Inputs:
+        b_fields- a dictionary with four values, each consisting of an array
+            of magnetic field vectors from a particular spacecraft of form 
+            (datlength,3)
+        spacecrafts_coords- a dictionary with four values, each consisting of 
+            an array of spacecraft coordinates of form (datlength,3)
+        mdd_eigenvals-arrays of the three eigenvalues from the analysis
+            ordered from largest to smallest in shape (datlength,3)
+        
+    '''
+    
+
+    
