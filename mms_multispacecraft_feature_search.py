@@ -49,9 +49,10 @@ data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify
                                                   #something as a data gap
 extrema_width=10 #number of points to compare on each side to declare an extrema
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
+window_padding=20 #number of indices to add to each side of window
 
 DEBUG=0 #chooses whether to stop at iteration 15 or not
-REPLOT=0 #chooses whether to regenerate the plots or not
+REPLOT=1 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -146,7 +147,7 @@ for M in MMS:
     #populate other necessary data dictionaries
     time_reg_b[M]=np.array(mt.TTtime2datetime(TT_time_b[M])) #time as datetime obj np arr
 
-
+  
 #find potential structure candidates from MMS 1
 bz_M1=b_field[MMS[0]][:,2]
 crossing_indices_M1=ms.find_crossings(bz_M1,time_reg_b[MMS[0]],data_gap_time)
@@ -157,10 +158,14 @@ crossing_indices_M1,crossing_signs_M1,max_indices_M1,min_indices_M1= \
                                                     crossing_signs_M1,
                                                     extrema_width,
                                                     min_crossing_height)
+crossing_times=time_reg_b[MMS[0]][crossing_indices_M1]
 crossing_structs,crossing_struct_times=ms.structure_extent(
                                 crossing_indices_M1,time_reg_b[MMS[0]],
                                 crossing_signs_M1,max_indices_M1,
                                 min_indices_M1,len(bz_M1))
+crossing_cuts,cut_struct_idxs=ms.section_maker(crossing_structs,window_padding,
+                                               len(bz_M1))
+  
 #investigate each potential structure:
 for i in range(len(crossing_indices_M1)):
     if (i==16 and DEBUG): #debug option
@@ -169,39 +174,39 @@ for i in range(len(crossing_indices_M1)):
         print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
         sys.exit("done with test cases")   
         
-    #determine structure sizes for M1
-    time_struct_b={}
-    b_field_struct={}
-    time_struct_b[MMS[0]]=time_reg_b[MMS[0]][crossing_structs[i][0]: \
+    #determine structure timings for M1
+    time_struct_b=time_reg_b[MMS[0]][crossing_structs[i][0]: \
                                               crossing_structs[i][1]]
-    b_field_struct[MMS[0]]=b_field[MMS[0]][crossing_structs[i][0]: \
-                                              crossing_structs[i][1]]
-    struct_endpts=[time_struct_b[MMS[0]][0],time_struct_b[MMS[0]][-1]]
+    #determine window timings for M1
+    time_cut_b=time_reg_b[MMS[0]][crossing_cuts[i][0]: \
+                                              crossing_cuts[i][1]]
     
-    #determine structures for multispacecraft techniques
-    bad_struct=False #True if all 4 spacecraft do not see the structure
-    for n in range(1,4): #over MMS 2,3,4
-        struct_mask=ma.interval_mask(time_reg_b[MMS[n]],struct_endpts[0],
-                             struct_endpts[1])
-        b_field_struct[MMS[n]]=b_field[MMS[n]][struct_mask]
-        time_struct_b[MMS[n]]=time_reg_b[MMS[n]][struct_mask]
-        is_crossing=ms.find_crossings(b_field_struct[MMS[n]][:,2],
-                                      time_struct_b[MMS[n]],data_gap_time)
-        if len(is_crossing) is 0: #no crossing for this satellite
-            bad_struct=True
-                
-    if(bad_struct): #not able to do multispacecraft techniques
-        continue
-      
     #sync all B-field data to MMS1 cadence
+    b_field_cut_sync={}
+    rad_cut_sync={}
     b_field_struct_sync={}
     rad_struct_sync={}
     for M in MMS:
-        b_field_struct_sync[M]=msc.bartlett_interp(b_field[M],time_reg_b[M],
-                                                   time_struct_b[MMS[0]])
-        rad_struct_sync[M]=msc.bartlett_interp(rad[M],time_reg_b[M],
-                                               time_struct_b[MMS[0]])
-
+        b_field_cut_sync[M]=msc.bartlett_interp(b_field[M],time_reg_b[M],
+                                                   time_cut_b)
+        rad_cut_sync[M]=msc.bartlett_interp(rad[M],time_reg_b[M],
+                                               time_cut_b)
+        b_field_struct_sync[M]=b_field_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]]
+        rad_struct_sync[M]=rad_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]]
+        
+    #determine structures for multispacecraft techniques
+    bad_struct=False #True if all 4 spacecraft do not see the structure
+    for n in range(1,4): #over MMS 2,3,4
+        is_crossing=ms.find_crossings(b_field_struct_sync[MMS[n]][:,2],
+                                      time_struct_b,data_gap_time)
+        if len(is_crossing) is 0: #no crossing for this satellite
+            bad_struct=True
+            print(i)
+                
+    if(bad_struct): #not able to do multispacecraft techniques
+        continue
 
     #do MDD analysis
     all_eigenvals,all_eigenvecs=msc.MDD(b_field_struct_sync,rad_struct_sync)
@@ -219,27 +224,43 @@ for i in range(len(crossing_indices_M1)):
     print(D_struct)
 
     #do STD analysis
+    '''
+    Todo: 
+        -pass windowed version to STD so that it can use the b-field parts to either side
+        -plot the window with crossing and edges highlighted, as before
+            +give some thought to figuring out a better way of determining the structure extent (between all extrema? idk)
+        -implement some sort of dynamic scaling of delta t for the STD analysis?
+            -maybe just find the average dB/dt and compare with the average delta B to 
+                find a good value for the central difference? Would be faster
+        -do post-processing determination of whether the STD analysis was good
+        -use the STD velocity(s) to determine the size of the structure
+            +at each spacecraft? yes/no? can figure out later if desired for more statistics
+                *don't just do it badly/sketchily for more statistics though, that is bad research practice
+    
+    '''
    
     if(REPLOT):
         #plot it 
         fig,(ax1,ax2)=plt.subplots(2)
         #plot joined and smoothed B-fields
         for M in MMS:  
-            bz=b_field_struct_sync[M][:,2]
-            mmsp.tseries_plotter(fig,ax1,time_struct_b[MMS[0]],bz,
+            bz=b_field_cut_sync[M][:,2]
+            mmsp.tseries_plotter(fig,ax1,time_cut_b,bz,
                                  labels=['Time sync','Time','B (nT)'],
-                                 lims=[min(time_struct_b[MMS[0]]),
-                                       max(time_struct_b[MMS[0]])],
+                                 lims=[min(time_cut_b),
+                                       max(time_cut_b)],
                                  legend=M) 
         #plot the eigenvalues
         for j in range(len(all_eigenvals[0,:])):
             eigenvals=all_eigenvals[:,j]
-            mmsp.tseries_plotter(fig,ax2,time_struct_b[MMS[0]],eigenvals,
+            mmsp.tseries_plotter(fig,ax2,time_struct_b,eigenvals,
                                  labels=eigenval_label,
-                                 lims=[min(time_struct_b[MMS[0]]),
-                                       max(time_struct_b[MMS[0]])],
+                                 lims=[min(time_cut_b),
+                                       max(time_cut_b)],
                                  legend=eigenval_legend[j],logscale=True)        
-        
+        #add horizontal and vertical lines to plot (crossing + extent)
+        mmsp.line_maker([ax1,ax2],time=crossing_times[i],
+                   edges=crossing_struct_times[i],horiz=0.)
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
                                 plot_out_name+str(i)+".png"), bbox_inches='tight')
         plt.close(fig="all")                                   

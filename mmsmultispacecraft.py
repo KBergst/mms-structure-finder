@@ -129,7 +129,12 @@ def spatial_gradient(vecs,spacecrafts_coords):
         grads.append(grad)          
       
     return grads
-        
+
+def time_deriv():
+    '''
+    Calculates the centered-difference time derivative of a value 
+    '''
+      
 def MDD(b_fields,spacecrafts_coords):
     '''
     Does a Minimum Directional Derivative (MDD) analysis on magnetic field data
@@ -215,7 +220,7 @@ def structure_diml(mdd_eigenvals):
         
     return dims,multi_diml,D_avg,[D_2D_avg,D_3D_avg]
 
-def STD(b_fields,spacecrafts_coords,mdd_eigenvals,mdd_eigenvecs,dims):
+def STD(b_fields,spacecrafts_coords,mdd_eigenvals,mdd_eigenvecs,dims,b_err):
     '''
     determines the velocity of 1D, 2D and 3D structures using the
     Spatio-Temporal Difference (STD) method, as outlined in Shi et al. 2006.
@@ -227,8 +232,16 @@ def STD(b_fields,spacecrafts_coords,mdd_eigenvals,mdd_eigenvecs,dims):
             an array of spacecraft coordinates of form (datlength,3)
         mdd_eigenvals-arrays of the three eigenvalues from the analysis
             ordered from largest to smallest in shape (datlength,3)
+        mdd_eigenvecs- list of arrays of the three eigenvectors from the MDD 
+            analysis at each point.
+        dims-list of three dimensions- true if the code thinks it is that
+            dimensionality and false if the code thinks it is not that 
+            dimensionality. [1D,2D,3D] 
+        b_err-expected error threshold for the magnetic field data.
+    Outputs:
         
     '''
+    
     
 
     

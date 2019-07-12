@@ -27,14 +27,21 @@ def section_maker(structure_extents,padding,max_index,min_index=0):
         window_list- list of two-element lists, where each two-element list 
             corresponds to an index crossing, and has the endpoint indices
             for the plotting window around that crossing
+        struct_cut_idxs- list of two-element lists, where each two element list
+            corresponds to a structure, and has the endpoint indices for the 
+            structure inside the window, starting from 0 at the first
+            index of the window slice.
     '''
     window_list=[]
-
+    struct_cut_idxs=[]
     for structure in structure_extents:
         index_min=max(structure[0]-padding,min_index)
         index_max=min(structure[1]+padding,max_index)
+        struct_cut_idx_min=structure[0]-index_min
+        struct_cut_idx_max=structure[1]-index_min
         window_list.append([index_min,index_max])
-    return window_list
+        struct_cut_idxs.append([struct_cut_idx_min,struct_cut_idx_max])
+    return window_list,struct_cut_idxs
 
 def larger_section_maker(window,scale_factor,max_index,min_index=0):
     '''

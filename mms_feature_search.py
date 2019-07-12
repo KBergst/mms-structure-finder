@@ -243,7 +243,8 @@ for M in MMS:
                                     crossing_indices_bz,time_reg_b,
                                     crossing_signs_bz,max_indices,min_indices,
                                     len(bz))
-    crossing_windows=ms.section_maker(crossing_structs,window_padding,len(bz))
+    crossing_windows,junk=ms.section_maker(crossing_structs,window_padding,
+                                           len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
         
