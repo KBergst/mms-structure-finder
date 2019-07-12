@@ -51,8 +51,8 @@ extrema_width=10 #number of points to compare on each side to declare an extrema
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 window_padding=20 #number of indices to add to each side of window
 
-DEBUG=0 #chooses whether to stop at iteration 15 or not
-REPLOT=1 #chooses whether to regenerate the plots or not
+DEBUG=1 #chooses whether to stop at iteration 15 or not
+REPLOT=0 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -220,25 +220,23 @@ for i in range(len(crossing_indices_M1)):
         print("2D structure")
     if(dims_struct[2]):
         print("3D structure")
-    print(junk)
-    print(D_struct)
 
     #do STD analysis
     '''
     Todo: 
-        -pass windowed version to STD so that it can use the b-field parts to either side
-        -plot the window with crossing and edges highlighted, as before
-            +give some thought to figuring out a better way of determining the structure extent (between all extrema? idk)
-        -implement some sort of dynamic scaling of delta t for the STD analysis?
-            -maybe just find the average dB/dt and compare with the average delta B to 
-                find a good value for the central difference? Would be faster
+        -give some thought to figuring out a better way of determining the structure extent (between all extrema? idk)
+        -implement the STD analysis for 1D, 2D, 3D structures
+            -use avg eigenvals, eigenvecs or do point by point? I guess point by point...
         -do post-processing determination of whether the STD analysis was good
         -use the STD velocity(s) to determine the size of the structure
             +at each spacecraft? yes/no? can figure out later if desired for more statistics
                 *don't just do it badly/sketchily for more statistics though, that is bad research practice
     
     '''
-   
+    tmp=msc.STD(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
+                rad_struct_sync,all_eigenvals,all_eigenvecs,dims_struct,
+                min_crossing_height)
+    
     if(REPLOT):
         #plot it 
         fig,(ax1,ax2)=plt.subplots(2)

@@ -130,10 +130,30 @@ def spatial_gradient(vecs,spacecrafts_coords):
       
     return grads
 
-def time_deriv():
+def time_deriv(array,times,deriv_window,dt_num):
     '''
-    Calculates the centered-difference time derivative of a value 
+    Calculates the centered-difference time derivative of value(s)
+    Inputs:
+        array- array to be time-differenced of form (datlength,n) for n the 
+            number of different scalar quantities to take derivatives of
+        times- the timeseries of the array of form (datlength)
+        deriv_window- two-element list of the beginning and end indices of 
+                the list of elements to have time-differencing done to
+        dt_num- number of data points to each side to do the central differencing
+            over (may want to do weighted average in the future? unclear)
+    Outputs:
+        derivs- the time derivative of array, in units/second, over the
+            indexes specified by deriv_window
     '''
+    derivs=np.empty((0,len(array[0,:])))
+    for idx in range(deriv_window[0],deriv_window[1]):
+        time_diff=(times[idx+dt_num]-times[idx-dt_num]).total_seconds()
+        array_diff=array[idx+dt_num,:]-array[idx-dt_num,:]
+        tmp=array_diff/time_diff
+        deriv=tmp.reshape(1,len(tmp))
+        derivs=np.concatenate((derivs,deriv))
+    
+    return derivs
       
 def MDD(b_fields,spacecrafts_coords):
     '''
@@ -162,6 +182,13 @@ def MDD(b_fields,spacecrafts_coords):
         idx=tmp1.argsort()[::-1] #default sort is small to big, so need to reverse
         eigenvals=tmp1[idx].reshape(1,3)
         eigenvecs=tmp2[:,idx]
+        
+        #flip the eigenvectors into a standardized direction (x positive for 0,1)
+        if eigenvecs[0,0] < 0:
+            eigenvecs[:,0]=-1*eigenvecs[:,0]
+        if eigenvecs[0,1] < 0:
+            eigenvecs[:,1]=-1*eigenvecs[:,1]
+        eigenvecs[:,2]=np.cross(eigenvecs[:,0],eigenvecs[:,1]) #right-handed coordinate system
         
         all_eigenvals=np.concatenate((all_eigenvals,eigenvals),axis=0)
         all_eigenvecs.append(eigenvecs)
@@ -220,14 +247,18 @@ def structure_diml(mdd_eigenvals):
         
     return dims,multi_diml,D_avg,[D_2D_avg,D_3D_avg]
 
-def STD(b_fields,spacecrafts_coords,mdd_eigenvals,mdd_eigenvecs,dims,b_err):
+def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
+        mdd_eigenvecs,dims,b_err,datarate=1/128):
     '''
     determines the velocity of 1D, 2D and 3D structures using the
     Spatio-Temporal Difference (STD) method, as outlined in Shi et al. 2006.
     Inputs:
         b_fields- a dictionary with four values, each consisting of an array
             of magnetic field vectors from a particular spacecraft of form 
-            (datlength,3)
+            (datlength,3). contains information from the entire window
+        times-timeseries for the b-field data
+        struct_idxs- two-element list of the beginning and end indices of 
+            the structure within the b_field data.
         spacecrafts_coords- a dictionary with four values, each consisting of 
             an array of spacecraft coordinates of form (datlength,3)
         mdd_eigenvals-arrays of the three eigenvalues from the analysis
@@ -238,10 +269,55 @@ def STD(b_fields,spacecrafts_coords,mdd_eigenvals,mdd_eigenvecs,dims,b_err):
             dimensionality and false if the code thinks it is not that 
             dimensionality. [1D,2D,3D] 
         b_err-expected error threshold for the magnetic field data.
+        datarate-expected time cadence of data. Default 1/128 s
     Outputs:
         
     '''
+    optimal=True
+    db_dt_avg=np.zeros_like(mdd_eigenvals)
+    veloc=np.zeros_like(mdd_eigenvals) #returns zero if the velocity shouldn't be determined
+    #calculate the average total time derivative in nT/s
+    b_field_struct={}
+    for sc in b_fields.keys():
+        dt_num=1
+        db_dt=time_deriv(b_fields[sc],times,struct_idxs,dt_num) #in nT/s
+        while (b_err/np.average(np.linalg.norm(db_dt,axis=1)) > \
+               dt_num*datarate): #need to redo time derivative with larger sectioning
+            dt_num=int(b_err/np.average(np.linalg.norm(db_dt,axis=1))/ \
+                       datarate)+1
+            if(dt_num >= struct_idxs[0]-1): #unable to do a large enough window to average
+                print("time differencing unable to meet optimal criteria")
+                optimal=False
+                break
+            db_dt=time_deriv(b_fields[sc],times,struct_idxs,dt_num) #in nT/s
+        db_dt_avg=db_dt_avg+db_dt/len(b_fields.values())
+        #section the b-field data to have only the part which has associated derivatives
+        b_field_struct[sc]=b_fields[sc][struct_idxs[0]:struct_idxs[1],:]
+        
+    #calculate the spatial gradient of the magnetic field
+    grad_B=spatial_gradient(b_field_struct,spacecrafts_coords)
     
+    #do the STD analysis for each spacecraft
+    if dims[0]: #only take one dimension
+        for n in range(struct_idxs[1]-struct_idxs[0]):
+            dbdt=db_dt_avg[n,:]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n]
+            veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
+    elif dims[1]: #only take two dimensions
+        for n in range(struct_idxs[1]-struct_idxs[0]):
+            dbdt=db_dt_avg[n,:]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n]
+            veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
+            veloc[n,1]=lhs[1]/mdd_eigenvals[n,1]
+    else: #do all three dimensions
+        for n in range(struct_idxs[1]-struct_idxs[0]):
+            dbdt=db_dt_avg[n,:]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n]
+            veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
+            veloc[n,1]=lhs[1]/mdd_eigenvals[n,1]
+            veloc[n,2]=lhs[2]/mdd_eigenvals[n,2]
+   
+    return optimal
     
 
     
