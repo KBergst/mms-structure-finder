@@ -377,8 +377,8 @@ for M in MMS:
         #cylinArray = mf.RectToCylindrical(b_mva_struct)
         #B_axi, B_azi = mf.modelFluxRope(0.5)
         #print("B_axial: " + str(B_axi) + "B_azi: " + str(B_azi))
-        if (minchi == False):
-            print ("The event was rejected")
+        if (minchi == False or minchi > 0.15):
+            print ("The event was rejected" + "MinchiSquared value" + str(minchi))
             isRejected = True
         else:
             print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam))

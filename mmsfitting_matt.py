@@ -111,19 +111,11 @@ def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 
             impactParameter = imp 
     print("The impact parameter is" + str(impactParameter))
     if impactParameter > 0.5:
-        print ("false")
+        
         minChiSquared = False
         return minChiSquared, impactParameter
     else:
         return minChiSquared, impactParameter 
-
-
-def getDist(imp_param,numOfDataPoints):
-    l = math.sqrt(1 - (imp_param ** 2)) #half of the chord
-    lengthOfChord = 2 * l
-    dist = lengthOfChord / numOfDataPoints
-    return l, dist
-
 
 def getTheta(radialDist, s):
     if (s == 0):
@@ -156,10 +148,6 @@ def chiSquared2(RectArray, imp_Param): #No conversion is needed for this one
     chiSquare = chiSquare / ((3 * numOfData) - 4)
     return chiSquare
 
-
-
-
-
 def getRadialDistance(s, numOfDataPoints, index, isEven):
     totalLength = 2 * (math.sqrt(1 - (s**2)))
     distBtwn = totalLength / (numOfDataPoints - 1)
@@ -177,7 +165,6 @@ def getRadialDistance(s, numOfDataPoints, index, isEven):
         distance = 0
     else:
         distance = (abs(index - half) * distBtwn)
-    
     radialDist = math.sqrt((distance ** 2 ) + (s ** 2))
     return radialDist
 
