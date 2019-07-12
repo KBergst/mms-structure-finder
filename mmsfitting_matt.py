@@ -9,11 +9,11 @@ Definitions for functions that are used for fitting
 
 
 import math
-import scipy as sp
+from scipy import special as sp
 
 #TODO: Write a function that normalizes the data 
 
-#Turns (x,y,z) coordinates into (r, theta, z) coordinates 
+#Turns (x,y,z) coordinates into (r, z, theta) coordinates 
 def RectToCylindrical(RectArray):   
     RectArray = normalize(RectArray)
     row, column = len(RectArray), len(RectArray[0]) #Gets the Height and Width of Array for conversion
@@ -41,11 +41,11 @@ def getAzimuthal(maxVar, minVar):
 
 def modelFluxRope(impact_param): #Mmodel flux rope based off of Smith et al., 2017
     ''' We assume that B0 and the Helicity are equal to 1 so that they are normalized'''
-    B0 = 1
+    B0 = 1 #should it equal 1? this is the missing piece?
     H = 1
     alpha = 2.4048 #From paper, constant alpha makes the flux rope linear
-    B_axial = B0 * sp.special.jv(0, alpha * impact_param)
-    B_azimuthal = B0 * H * sp.special.jv(1, alpha * impact_param)
+    B_axial = B0 * sp.jv(0, alpha * impact_param)
+    B_azimuthal = B0 * H * sp.jv(1, alpha * impact_param)
     return B_axial,B_azimuthal
 
 
@@ -67,6 +67,18 @@ def normalize(oldArray): #makes all vectors a ratio of the largest magnitude vec
         normalized[x][2] = oldArray[x][2] * (ratio/magnitude)
     return normalized 
         
+def normalize2(oldArray, impact_param): #maximmum magnitude is based off of the bessel function, which is a funciton of the impact parameter
+    b_axi, b_azi = modelFluxRope(impact_param)
+    maxMagnitude = math.sqrt((b_axi ** 2 ) + (b_azi **2))
+    row, column = len(oldArray), len(oldArray[0]) #Gets the Height and Width of Array for conversion
+    normalized = [[0 for x in range(column)] for y in range(row)] #Initializes the return array as empty
+    for x in range(len(oldArray)): #converts all values into ratio of maximum magnitude
+        magnitude = math.sqrt(oldArray[x][0] ** 2 + (oldArray[x][1] ** 2) + (oldArray[x][2] ** 2))   
+        ratio = magnitude / maxMagnitude
+        normalized[x][0] = oldArray[x][0] * (ratio/magnitude)
+        normalized[x][1] = oldArray[x][1] * (ratio/magnitude)
+        normalized[x][2] = oldArray[x][2] * (ratio/magnitude)
+    return normalized 
     
 
 def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 2017
@@ -74,17 +86,25 @@ def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 
     #not sure if this is correct -- made a lot of assumptions
     impactParameter = 0
     minChiSquared = 0
-    chiSquaredValue = 0 
+    chiSquaredValue = 0
+    isEven = False
+    if len(RectArray) % 2 == 0:
+        isEven = True
+        
     for y in range(0, 95, 1):
-        imp = y / 100
-        B_axial, B_azimuthal = modelFluxRope(y)
+        imp = y / float(100)
+        #print("The chi-squared before turning to 0" + str(chiSquaredValue))
+        chiSquaredValue = 0 
         for x in range(len(RectArray)):
-            chiSquaredValue += ((CylindArray[x][0]- B_azimuthal) ** 2) + ((CylindArray[0][1] - B_axial) ** 2)
+            radialDist = getRadialDistance(imp, len(RectArray), x, isEven)
+            B_axial, B_azimuthal = modelFluxRope(radialDist)
+           # print("B-Axial: " + str(B_axial) + "B-azimuthal: " + str(B_azimuthal))
+            chiSquaredValue += ((CylindArray[x][0] - B_azimuthal) ** 2) + ((CylindArray[0][1] - B_axial) ** 2)
+            
             '''for  the model equation does it only give magnitudes in the cylindrical coordinate system?
                in the paper is the chi squared only comparing the magnitudes of the magnetic fields in the azimuthal direction?'''
         chiSquaredValue = chiSquaredValue / len(RectArray)
-        if imp == 0:
-            impactParameter = 0
+        if imp == 0.0:
             minChiSquared = chiSquaredValue
         elif chiSquaredValue < minChiSquared:
             minChiSquared = chiSquaredValue
@@ -105,13 +125,11 @@ def getDist(imp_param,numOfDataPoints):
     return l, dist
 
 
-def getTheta(imp_param, numOfDataPoints, index, l, dist):
-    theta = 0
-    half = math.ceil(numOfDataPoints / 2)
-    if (index > half): #right side
-        theta = math.atan(((index - half) * dist )/imp_param)
+def getTheta(radialDist, s):
+    if (s == 0):
+        theta = 0
     else:
-        theta = math.atan((l - (dist * index))/imp_param)
+        theta = math.atan(radialDist / s)
     return theta
         
     
@@ -124,18 +142,50 @@ def getComponents(theta, b_azi):
 def chiSquared2(RectArray, imp_Param): #No conversion is needed for this one
     RectArray = normalize(RectArray)
     numOfData = len(RectArray)
-    chiSquare = 0
-    b_axial, b_azim = modelFluxRope(imp_Param)
-    l, dist = getDist(imp_Param, numOfData)
+    chiSquare = 0    
+    isEven = False
+    radialDist = 0
+    if len(RectArray) % 2 == 0:
+        isEven = True    
     for x in range(numOfData):
-        theta = getTheta(imp_Param, numOfData, x, l, dist)
-        b_model_min, b_model_max = getComponents(theta, b_azim)
-        chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axial) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
-    chiSquare = (3 * numOfData) - 4
+        radialDist = getRadialDistance(imp_Param, numOfData, x, isEven)
+        theta = getTheta(radialDist, imp_Param)
+        b_axi, b_azi = modelFluxRope(radialDist)
+        b_model_min, b_model_max = getComponents(theta, b_azi)
+        chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axi) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
+    chiSquare = chiSquare / ((3 * numOfData) - 4)
     return chiSquare
 
 
 
+
+
+def getRadialDistance(s, numOfDataPoints, index, isEven):
+    totalLength = 2 * (math.sqrt(1 - (s**2)))
+    distBtwn = totalLength / (numOfDataPoints - 1)
+    distance = 0
+    half = numOfDataPoints / 2
+    if(isEven and (index == half) or (isEven and (index == (half + 1)))):
+        distance = distBtwn * 0.5
+    elif(isEven and (index > half)):
+        distance = distBtwn * (((numOfDataPoints - 1) / 2) - index)
+    elif(isEven and (index < half)):
+        distance = distBtwn * (((numOfDataPoints - 1) / 2) - index)
+    elif(index > (math.ceil(half))): #odd cases
+        distance = (index - (math.ceil(half))) * distBtwn
+    elif(index == (math.ceil(half))):
+        distance = 0
+    else:
+        distance = (abs(index - half) * distBtwn)
+    
+    radialDist = math.sqrt((distance ** 2 ) + (s ** 2))
+    return radialDist
+
+
+    
+
+        
+    
         
     
     

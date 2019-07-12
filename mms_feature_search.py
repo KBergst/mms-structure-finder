@@ -16,6 +16,7 @@ import mmsdata as md
 import mmsarrays as ma
 import mmsstructs as ms
 import mmsfitting_matt as mf
+import debug_matt as db
 
 #canned packages
 import numpy as np
@@ -64,7 +65,7 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
 REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=1 #chooses whether to stop at iteration 15 or not
+DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -118,7 +119,7 @@ time_reg_jcurl=np.array([])
 
 #repeating for each satellite
 for M in MMS:
-    print("One Satellite")
+    #print("One Satellite")
     MMS_structure_counts[M]={type_dict[0]: 0,type_dict[1]: 0,
                              type_dict[2]: 0,
                              type_dict[3]: 0,
@@ -246,8 +247,8 @@ for M in MMS:
                                     len(bz))
     #process each crossing
     for i in range(len(crossing_indices_bz)):
-        print("one crossing")    
-        if (i==16 and DEBUG): #debug option
+    
+        if (i==15 and DEBUG): #debug option
             #check how long the code took to run
             end=time.time()
             print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
@@ -321,6 +322,7 @@ for M in MMS:
                                               data_gap_time) #max var direction crosses zero?
 
         if len(valid_zero_crossings) is 0:
+        
             continue #no zero crossing, so in MVA coordinates it no longer fulfills needed conditions
         
         '''Additional calculation of relevant information '''
@@ -370,19 +372,38 @@ for M in MMS:
         
         '''
         minchi, impParam = mf.chisquared1(b_mva_struct)
+        normArray = mf.normalize(b_mva_struct)
+        isRejected = False
+        #cylinArray = mf.RectToCylindrical(b_mva_struct)
+        #B_axi, B_azi = mf.modelFluxRope(0.5)
+        #print("B_axial: " + str(B_axi) + "B_azi: " + str(B_azi))
         if (minchi == False):
             print ("The event was rejected")
+            isRejected = True
         else:
-            print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam)) 
-'''        chiSquare2 = mf.chiSquared2(b_mva_struct, impParam)
-        print ("Second chi-square test value" + chiSquare2)
+            print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam))
+        if(isRejected == False):
+            chiSquare2 = mf.chiSquared2(b_mva_struct, impParam)
+            print ("Second chi-square test value" + str(chiSquare2))
         
-        
-        
-        
-        
-        
+        magnitude = [0 for x in range(len(normArray))]
+        for p in range(len(normArray)):
+            magnitude[p] = (normArray[p][0] ** 2) + (normArray[p][1] ** 2) + (normArray[p][2] ** 2)
+        x = np.arange(0, len(normArray), 1); 
+        v = np.vectorize(db.d)
+        plt.plot(x, magnitude)
+        v = np.vectorize(db.y)
+        z = ((x - (len(normArray) / 2)) / len(normArray) ) * .95
+        plt.plot(x, v(z))
+        plt.show()
 
+       
+        
+        
+        
+        
+        
+'''
         #plot everything, if desired:
         if (REPLOT):
             jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
@@ -474,7 +495,7 @@ for M in MMS:
             plt.close(fig='all')
         
         if (i % 30 == 0):
-                 Plot larger window to check for larger structures 
+                Plot larger window to check for larger structures 
                 
                 larger_window=ms.larger_section_maker(crossing_windows[i],
                                                    window_scale_factor,
