@@ -188,11 +188,11 @@ def MDD(b_fields,spacecrafts_coords):
             eigenvecs[:,0]=-1*eigenvecs[:,0]
         if eigenvecs[0,1] < 0:
             eigenvecs[:,1]=-1*eigenvecs[:,1]
-        eigenvecs[:,2]=np.cross(eigenvecs[:,0],eigenvecs[:,1]) #right-handed coordinate system
-        
+        if eigenvecs[0,2] < 0:
+            eigenvecs[:,2]=-1*eigenvecs[:,2]
         all_eigenvals=np.concatenate((all_eigenvals,eigenvals),axis=0)
         all_eigenvecs.append(eigenvecs)
-    
+
     return all_eigenvals, all_eigenvecs    
 
 def structure_diml(mdd_eigenvals):

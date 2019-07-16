@@ -78,6 +78,52 @@ def boxcar_avg(array,width):
     boxcar_avg=np.convolve(array,weights,mode='same')
     return boxcar_avg
 
+def hamming_smooth(array,width):
+    '''
+    Does hamming window smoothing of an array of data
+    Inputs:
+        array- input array to do smoothing on, should not be multidiml
+            (do each component of vector quantities separately)
+        width- the width of the hamming window to use
+    Outputs:
+        smoothed_arr-array smoothed using the hamming window
+    '''
+    
+    #reduce boundary effects at the beginning/end of the array
+    reflected_arr=np.r_[array[width-1:0:-1],array,array[-2:-width-1:-1]]
+    #do smoothing
+    hamming=np.hamming(width)
+    y=np.convolve(hamming/hamming.sum(),reflected_arr,mode='valid') #wrong dimension
+    smoothed_arr=y[(width//2-1):-(width//2)]      
+    
+    return smoothed_arr
+
+def smoothing(array):
+    '''
+    for determining how large of a window to do hamming smoothing over
+    sets a baseline ratio of 0.1 window/total, rounded to an even integer
+    returns the smoothed array
+    Inputs:
+        array- input array for smoothing, can be multidiml of shape
+            (datlength,n) for n the number of different components
+    Outputs:
+        
+    '''
+    width=(len(array[:,0])//10)*2
+    
+    if width < 3:
+        #too small for meaningful smoothing
+        print("calculated smoothing width too small")
+        return array
+    
+    smoothed_array=np.empty_like(array)
+    for n in range(len(array[0,:])):
+        smoothed_array[:,n]=hamming_smooth(array[:,n],width)
+        
+    return smoothed_array
+    
+    
+    
 def interval_mask(series,min_val,max_val):
     '''
     Takes numpy array data and returns a mask defined by given

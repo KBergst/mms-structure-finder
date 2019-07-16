@@ -20,7 +20,7 @@ import mmsmultispacecraft as msc
 #canned packages
 import numpy as np
 import matplotlib.pyplot as plt
-#import matplotlib as mpl
+import matplotlib as mpl
 import datetime as dt
 import sys #for debugging
 #from pympler.tracker import SummaryTracker #for tracking memory usage
@@ -52,7 +52,7 @@ min_crossing_height=0.1 #expected nT error in region of interest as per document
 window_padding=20 #number of indices to add to each side of window
 
 DEBUG=1 #chooses whether to stop at iteration 15 or not
-REPLOT=0 #chooses whether to regenerate the plots or not
+REPLOT=1 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -93,8 +93,10 @@ j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
 
 #legends, etc. for plotting
+b_label=['Magnetic field of structure over all satellites','Time','Bz (nT)']
 eigenval_label=['Eigenvalues from MDD','Time',r'$\lambda$']
 eigenval_legend=[r'$\lambda_{max}$',r'$\lambda_{med}$',r'$\lambda_{min}$']
+eigenvec_legend=['x','y','z']
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -181,14 +183,16 @@ for i in range(len(crossing_indices_M1)):
     time_cut_b=time_reg_b[MMS[0]][crossing_cuts[i][0]: \
                                               crossing_cuts[i][1]]
     
-    #sync all B-field data to MMS1 cadence
+    #sync all B-field data to MMS1 cadence and use a hamming window smooth
+        #for the b-field data
     b_field_cut_sync={}
     rad_cut_sync={}
     b_field_struct_sync={}
     rad_struct_sync={}
     for M in MMS:
-        b_field_cut_sync[M]=msc.bartlett_interp(b_field[M],time_reg_b[M],
+        tmp=msc.bartlett_interp(b_field[M],time_reg_b[M],
                                                    time_cut_b)
+        b_field_cut_sync[M]=ma.smoothing(tmp)
         rad_cut_sync[M]=msc.bartlett_interp(rad[M],time_reg_b[M],
                                                time_cut_b)
         b_field_struct_sync[M]=b_field_cut_sync[M][cut_struct_idxs[i][0]: \
@@ -203,7 +207,6 @@ for i in range(len(crossing_indices_M1)):
                                       time_struct_b,data_gap_time)
         if len(is_crossing) is 0: #no crossing for this satellite
             bad_struct=True
-            print(i)
                 
     if(bad_struct): #not able to do multispacecraft techniques
         continue
@@ -214,19 +217,24 @@ for i in range(len(crossing_indices_M1)):
     
     #check dimensionality (will do more carefully later, just to see for now)
     print(i)
+    type_str='undefined'
     if(dims_struct[0]):
-        print("1D structure")
-    if(dims_struct[1]):
-        print("2D structure")
-    if(dims_struct[2]):
-        print("3D structure")
+        type_str="1D structure"
+    elif(dims_struct[1]):
+        type_str="2D structure"
+    elif(dims_struct[2]):
+        type_str="3D structure"
 
     #do STD analysis
     '''
     Todo: 
+        -smooth the data to avoid turbulence making the analyses garbage
+        -display information, including:
+            -the components of all of the eigenvectors
+            -the dimensionality of the structure
+            -the magnitude of the velocity (compared with v_e and v_i perhaps)
+            -the velocity components (in the non-invariant directions of course)
         -give some thought to figuring out a better way of determining the structure extent (between all extrema? idk)
-        -implement the STD analysis for 1D, 2D, 3D structures
-            -use avg eigenvals, eigenvecs or do point by point? I guess point by point...
         -do post-processing determination of whether the STD analysis was good
         -use the STD velocity(s) to determine the size of the structure
             +at each spacecraft? yes/no? can figure out later if desired for more statistics
@@ -239,12 +247,27 @@ for i in range(len(crossing_indices_M1)):
     
     if(REPLOT):
         #plot it 
-        fig,(ax1,ax2)=plt.subplots(2)
+        mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
+        plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
+        gridsize=(6,4)
+        fig=plt.figure(figsize=(16,12)) #width,height
+        ax1=plt.subplot2grid(gridsize,(0,0),colspan=2)
+        ax2=plt.subplot2grid(gridsize,(1,0),colspan=2)   
+        ax3=plt.subplot2grid(gridsize,(2,0),colspan=2) 
+        ax4=plt.subplot2grid(gridsize,(3,0),colspan=2)
+        ax5=plt.subplot2grid(gridsize,(4,0),colspan=2)
+        ax6=plt.subplot2grid(gridsize,(5,0),colspan=2)
+        ax6.axis('off')
+        ax7=plt.subplot2grid(gridsize,(0,2),colspan=2)
+        ax8=plt.subplot2grid(gridsize,(1,2),colspan=2)
+        ax9=plt.subplot2grid(gridsize,(2,2))
+        ax10=plt.subplot2grid(gridsize,(2,3))
+        ax11=plt.subplot2grid(gridsize,(3,2),colspan=2)
         #plot joined and smoothed B-fields
         for M in MMS:  
             bz=b_field_cut_sync[M][:,2]
             mmsp.tseries_plotter(fig,ax1,time_cut_b,bz,
-                                 labels=['Time sync','Time','B (nT)'],
+                                 labels=b_label,
                                  lims=[min(time_cut_b),
                                        max(time_cut_b)],
                                  legend=M) 
@@ -255,9 +278,29 @@ for i in range(len(crossing_indices_M1)):
                                  labels=eigenval_label,
                                  lims=[min(time_cut_b),
                                        max(time_cut_b)],
-                                 legend=eigenval_legend[j],logscale=True)        
+                                 legend=eigenval_legend[j],logscale=True)  
+        #plot the eigenvectors for each eigenvector
+        eigenvecs_max=np.array([all_eigenvecs[n][:,0] for n in \
+                                                    range(len(all_eigenvecs))])
+        eigenvecs_mid=np.array([all_eigenvecs[n][:,1] for n in \
+                                                    range(len(all_eigenvecs))])
+        eigenvecs_min=np.array([all_eigenvecs[n][:,2] for n in \
+                                                    range(len(all_eigenvecs))])
+        for j in range(3):
+            mmsp.tseries_plotter(fig,ax3,time_struct_b,eigenvecs_max[:,j],
+                                 labels=[type_str,'',''],lims=[min(time_cut_b),
+                                                             max(time_cut_b)],
+                                 legend=eigenvec_legend[j])
+            mmsp.tseries_plotter(fig,ax4,time_struct_b,eigenvecs_mid[:,j],
+                                 labels=[type_str,'',''],lims=[min(time_cut_b),
+                                                             max(time_cut_b)],
+                                 legend=eigenvec_legend[j])
+            mmsp.tseries_plotter(fig,ax5,time_struct_b,eigenvecs_min[:,j],
+                                 labels=[type_str,'',''],lims=[min(time_cut_b),
+                                                             max(time_cut_b)],
+                                 legend=eigenvec_legend[j])            
         #add horizontal and vertical lines to plot (crossing + extent)
-        mmsp.line_maker([ax1,ax2],time=crossing_times[i],
+        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],time=crossing_times[i],
                    edges=crossing_struct_times[i],horiz=0.)
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
                                 plot_out_name+str(i)+".png"), bbox_inches='tight')
