@@ -65,12 +65,13 @@ def electron_veloc(j,time_j,vi,ni,time_ni,ne,time_ne):
                               assume_sorted=True)
     ne_interp=interp.interp1d(time_ne,ne, kind='linear',
                               assume_sorted=True)
-    ve=np.transpose(np.array([[],[],[]]))
+    ve_list=[]
 #    vex_list_novi=[]
     for n,ttime in enumerate(time_j):
         tmp=(vi_interp(ttime)*ni_interp(ttime)*1e9* \
                   E_CHARGE_mC-j[n,:])/E_CHARGE_mC/(ne_interp(ttime))/1e9
         ve_time=tmp.reshape((1,3))
-        ve=np.concatenate((ve,ve_time),axis=0) 
+        ve_list.append(ve_time) 
 
+    ve=np.concatenate(ve_list,axis=0)
     return ve

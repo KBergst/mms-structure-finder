@@ -211,6 +211,9 @@ for M in MMS:
     time_reg_b=np.array(mt.TTtime2datetime(TT_time_b)) #time as datetime obj np arr
     time_reg_ni=np.array(mt.TTtime2datetime(TT_time_ni))
     time_reg_ne=np.array(mt.TTtime2datetime(TT_time_ne))
+    #transform velocities into GSM
+    ve_fpi=mt.coord_transform(ve_fpi,'GSE','GSM',time_reg_ne)
+    vi=mt.coord_transform(vi,'GSE','GSM',time_reg_ni)
     bz=b_field[:,2]
     jy=j_curl[:,1]
     vex_fpi=ve_fpi[:,0]

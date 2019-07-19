@@ -145,13 +145,14 @@ def time_deriv(array,times,deriv_window,dt_num):
         derivs- the time derivative of array, in units/second, over the
             indexes specified by deriv_window
     '''
-    derivs=np.empty((0,len(array[0,:])))
+    list_derivs=[]
     for idx in range(deriv_window[0],deriv_window[1]):
         time_diff=(times[idx+dt_num]-times[idx-dt_num]).total_seconds()
         array_diff=array[idx+dt_num,:]-array[idx-dt_num,:]
         tmp=array_diff/time_diff
         deriv=tmp.reshape(1,len(tmp))
-        derivs=np.concatenate((derivs,deriv))
+        list_derivs.append(deriv)
+    derivs=np.concatenate(list_derivs,axis=0)
     
     return derivs
       
@@ -168,12 +169,14 @@ def MDD(b_fields,spacecrafts_coords):
     Outputs:
         all_eigenvals-arrays of the three eigenvalues from the analysis
             ordered from largest to smallest in shape (datlength,3)
-        all_eigenvecs- list of arrays of the three eigenvectors
+        all_eigenvecs- array of arrays of the three eigenvectors in shape
+            (datlength,3,3)
     '''
     b_grads=spatial_gradient(b_fields,spacecrafts_coords)
     
     all_eigenvals=np.transpose(np.array([[],[],[]]))
-    all_eigenvecs=[]
+    list_eigenvals=[]
+    list_eigenvecs=[]
     for grad_b in b_grads:
         L=grad_b @ np.transpose(grad_b)
         
@@ -182,17 +185,23 @@ def MDD(b_fields,spacecrafts_coords):
         idx=tmp1.argsort()[::-1] #default sort is small to big, so need to reverse
         eigenvals=tmp1[idx].reshape(1,3)
         eigenvecs=tmp2[:,idx]
-        
-        #flip the eigenvectors into a standardized direction (x positive for 0,1)
-        if eigenvecs[0,0] < 0:
-            eigenvecs[:,0]=-1*eigenvecs[:,0]
-        if eigenvecs[0,1] < 0:
-            eigenvecs[:,1]=-1*eigenvecs[:,1]
-        if eigenvecs[0,2] < 0:
-            eigenvecs[:,2]=-1*eigenvecs[:,2]
-        all_eigenvals=np.concatenate((all_eigenvals,eigenvals),axis=0)
-        all_eigenvecs.append(eigenvecs)
+            
+        eigenvecs=eigenvecs.reshape((1,3,3))    
+            
+        list_eigenvals.append(eigenvals)
+        list_eigenvecs.append(eigenvecs)
 
+    #convert eigenvecs,eigenvals to numpy array
+    all_eigenvals=np.concatenate(list_eigenvals,axis=0)
+    all_eigenvecs=np.concatenate(list_eigenvecs,axis=0)
+    #flip all eigenvectors for the structure into a standardized direction
+    datlength=np.size(all_eigenvecs,axis=0)
+    center_eigenvecs=all_eigenvecs[datlength//2,:,:]
+    for n in range(datlength): #probably a faster way to do than nested for loops
+        for i in range(3):
+            if np.dot(center_eigenvecs[:,i],all_eigenvecs[n,:,i]) < 0:
+                all_eigenvecs[n,:,i]=-1*all_eigenvecs[n,:,i]
+    
     return all_eigenvals, all_eigenvecs    
 
 def structure_diml(mdd_eigenvals):
@@ -276,6 +285,7 @@ def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
     optimal=True
     db_dt_avg=np.zeros_like(mdd_eigenvals)
     veloc=np.zeros_like(mdd_eigenvals) #returns zero if the velocity shouldn't be determined
+    normal_veloc=veloc #will contain the normal velocity in GSM coordinates
     #calculate the average total time derivative in nT/s
     b_field_struct={}
     for sc in b_fields.keys():
@@ -301,23 +311,26 @@ def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
     if dims[0]: #only take one dimension
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
-            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
             veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
+            normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
     elif dims[1]: #only take two dimensions
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
-            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
             veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
             veloc[n,1]=lhs[1]/mdd_eigenvals[n,1]
+            normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
     else: #do all three dimensions
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
-            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
             veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
             veloc[n,1]=lhs[1]/mdd_eigenvals[n,1]
             veloc[n,2]=lhs[2]/mdd_eigenvals[n,2]
-   
-    return optimal
+            normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
+    
+    return normal_veloc,optimal
     
 
     

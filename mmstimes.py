@@ -12,6 +12,8 @@ additional conversions later if needed/desired.
 import matplotlib as mpl
 import datetime as dt
 import pytz #for timezone info
+import spacepy.coordinates as spcoords
+from spacepy.time import Ticktock
 
 
 def TTtime2datetime(time_nanosecs):
@@ -87,4 +89,20 @@ def str2datetime(time_str):
     '''
     time_dt=dt.datetime.strptime(time_str,'%Y-%m-%d %H:%M:%S.%f%z')
     
-    return time_dt    
+    return time_dt  
+
+def coord_transform(vecs,sys1,sys2,times):
+    '''
+    Uses spacepy to do coordinate transformations (assuming cartesian)
+    vecs- the vector of arrays in the old coordinates of shape (datlength,3)
+    sys1- string denoting the old coordinates e.g. 'GSE','GSM', etc.
+    sys2- string denoting the new coordinates e.g. 'GSE','GSM', etc.
+    times-array of timestamps for the vecs, as datetime objects in UTC time
+    '''
+    cvals=spcoords.Coords(vecs,sys1,'car')
+    cvals.ticks=Ticktock(times,'UTC')
+    new_cvals=cvals.convert(sys2,'car')
+    new_vecs=new_cvals.data
+    
+    return new_vecs
+    

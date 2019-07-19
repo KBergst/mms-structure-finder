@@ -11,7 +11,7 @@ Hope is to determine accurate structure speeds, invariant directions, etc.
 #mms-specific in-house modules
 import mmsplotting as mmsp
 import mmstimes as mt
-#import plasmaparams as pp
+import plasmaparams as pp
 import mmsdata as md
 import mmsarrays as ma
 import mmsstructs as ms
@@ -50,8 +50,9 @@ data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify
 extrema_width=10 #number of points to compare on each side to declare an extrema
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 window_padding=20 #number of indices to add to each side of window
+ne_fudge_factor=0.001 #small amount of density to add to avoid NaN velocities
 
-DEBUG=1 #chooses whether to stop at iteration 15 or not
+DEBUG=0 #chooses whether to stop at iteration 15 or not
 REPLOT=1 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
@@ -86,8 +87,11 @@ rad={} #dictionary holding resampled spacecraft position data (same time cadence
 TT_time_b={}
 time_reg_b={}
 ni={}
-vi={}
-TT_time_ni={}
+vi={} #will be interpolated to b-field cadence (fit w/ spline)
+ne={}
+ne_nozero={}
+ve={}
+TT_time_ne={}
 
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
@@ -96,7 +100,19 @@ time_reg_jcurl=np.array([])
 b_label=['Magnetic field of structure over all satellites','Time','Bz (nT)']
 eigenval_label=['Eigenvalues from MDD','Time',r'$\lambda$']
 eigenval_legend=[r'$\lambda_{max}$',r'$\lambda_{med}$',r'$\lambda_{min}$']
+eigenvec_label_start=['maximum','middle','minimum']
+eigenvec_label=[]
+for i in range(3):
+    eigenvec_label.append(\
+      [r'Unit vector components in the {} varying direction' \
+       .format(eigenvec_label_start[i]),'Time','Component (GSM)'])
 eigenvec_legend=['x','y','z']
+veloc_labels=['Structure normal velocity in GSM in time','Time',
+              'Normal velocity (km/s)']
+veloc_legend=['Vx','Vy','Vz','Vtot']
+vcompare_labels=['Velocity at barycenter','Time','Normal velocity (km/S']
+vcompare_legend=['Structure normal velocity','Ion normal velocity',
+                 'Electron normal velocity']
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -116,7 +132,9 @@ for M in MMS:
     TT_time_b[M]=np.array([])
     ni[M]=np.array([])
     vi[M]=np.transpose(np.array([[],[],[]])) #for all vi data 
-    TT_time_ni[M]=np.array([])
+    ne[M]=np.array([])
+    ve[M]=np.transpose(np.array([[],[],[]])) #for all ve data 
+    TT_time_ne[M]=np.array([])
     
     for b_stub,dis_stub,des_stub in zip(b_list,dis_list,des_list):
         #create full paths
@@ -136,20 +154,36 @@ for M in MMS:
         rad[M]=np.concatenate((rad[M],rad_btime_tmp),axis=0)
         TT_time_b[M]=np.concatenate((TT_time_b[M],TT_time_tmp))
         #read and process the ni,vi data
-        TT_time_tmp,ni_tmp,ni_err_tmp,temp=md.get_cdf_var(dis_file,
+        TT_time_ni_tmp,ni_tmp,ni_err_tmp,temp=md.get_cdf_var(dis_file,
                                        ['Epoch',
                                         'mms'+M+'_dis_numberdensity_brst',
                                         'mms'+M+'_dis_numberdensity_err_brst',
                                         'mms'+M+'_dis_bulkv_gse_brst'])
-        ni[M]=np.concatenate((ni[M],ni_tmp))
-        TT_time_ni[M]=np.concatenate((TT_time_ni[M],TT_time_tmp))
+        tmp_ni_spline=interp.CubicSpline(TT_time_ni_tmp,ni_tmp) #interpolate ion density data
+        ni_btime_tmp=tmp_ni_spline(TT_time_tmp) #interpolate ion density to b-field timestamps
+        ni[M]=np.concatenate((ni[M],ni_btime_tmp))
         vi_tmp=temp.reshape(temp.size//3,3)
-        vi[M]=np.concatenate((vi[M],vi_tmp))
+        tmp_vi_spline=interp.CubicSpline(TT_time_ni_tmp,vi_tmp) #interpolate ion veloc data
+        vi_btime_tmp=tmp_vi_spline(TT_time_tmp) #interpolate ion veloc to b-field timestamps
+        vi[M]=np.concatenate((vi[M],vi_btime_tmp),axis=0) 
+        #read and process the ne and ve data
+        TT_time_tmp,ne_tmp=md.get_cdf_var(des_file,['Epoch',
+                                            'mms'+M+'_des_numberdensity_brst'])
+        ne[M]=np.concatenate((ne[M],ne_tmp))
+        TT_time_ne[M]=np.concatenate((TT_time_ne[M],TT_time_tmp)) 
     
     #populate other necessary data dictionaries
     time_reg_b[M]=np.array(mt.TTtime2datetime(TT_time_b[M])) #time as datetime obj np arr
+    ne_nozero[M]=np.where(ne[M]>ne_fudge_factor,ne[M],ne_fudge_factor)
+    #transform velocities to GSM coordinates from GSE
+    vi[M]=mt.coord_transform(vi[M],'GSE','GSM',time_reg_b[M])
+    #roughly calculate electron velocity from curlometer
+    ve_tmp=pp.electron_veloc(j_curl,TT_time_j,vi[M],ni[M],TT_time_b[M],
+                            ne_nozero[M],TT_time_ne[M])
+    tmp_ve_spline=interp.CubicSpline(TT_time_j,ve_tmp) #interpolate electron veloc data
+    ve[M]=tmp_ve_spline(TT_time_b[M]) #interpolate electron veloc to b-field timestamps    
 
-  
+
 #find potential structure candidates from MMS 1
 bz_M1=b_field[MMS[0]][:,2]
 crossing_indices_M1=ms.find_crossings(bz_M1,time_reg_b[MMS[0]],data_gap_time)
@@ -187,18 +221,35 @@ for i in range(len(crossing_indices_M1)):
         #for the b-field data
     b_field_cut_sync={}
     rad_cut_sync={}
+    vi_cut_sync={}
+    ve_cut_sync={}
     b_field_struct_sync={}
     rad_struct_sync={}
+    vi_struct_sync={}
+    vi_struct_bary=np.zeros((len(time_struct_b),3)) #vi at barycenter
+    ve_struct_sync={}
+    ve_struct_bary=np.zeros((len(time_struct_b),3)) #ve at barycenter
+    
     for M in MMS:
         tmp=msc.bartlett_interp(b_field[M],time_reg_b[M],
                                                    time_cut_b)
         b_field_cut_sync[M]=ma.smoothing(tmp)
         rad_cut_sync[M]=msc.bartlett_interp(rad[M],time_reg_b[M],
                                                time_cut_b)
+        vi_cut_sync[M]=msc.bartlett_interp(vi[M],time_reg_b[M],
+                                               time_cut_b)
+        ve_cut_sync[M]=msc.bartlett_interp(ve[M],time_reg_b[M],
+                                               time_cut_b)
         b_field_struct_sync[M]=b_field_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1]]
         rad_struct_sync[M]=rad_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1]]
+        vi_struct_sync[M]=vi_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]]
+        vi_struct_bary=vi_struct_bary+vi_struct_sync[M]/len(MMS)
+        ve_struct_sync[M]=ve_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]]
+        ve_struct_bary=ve_struct_bary+ve_struct_sync[M]/len(MMS)
         
     #determine structures for multispacecraft techniques
     bad_struct=False #True if all 4 spacecraft do not see the structure
@@ -214,55 +265,67 @@ for i in range(len(crossing_indices_M1)):
     #do MDD analysis
     all_eigenvals,all_eigenvecs=msc.MDD(b_field_struct_sync,rad_struct_sync)
     dims_struct,tmp,D_struct,junk=msc.structure_diml(all_eigenvals)
-    
-    #check dimensionality (will do more carefully later, just to see for now)
+
+    #calculate ion and electron velocities normal to structure (not in invariant dir.) 
+    #and check dimensionality
     print(i)
     type_str='undefined'
+    vi_norm=np.zeros(len(time_struct_b))
+    ve_norm=np.zeros(len(time_struct_b))
     if(dims_struct[0]):
         type_str="1D structure"
+        for n in range(len(time_struct_b)):
+            vi_mdd=np.transpose(all_eigenvecs[n,:,:]) @ vi_struct_bary[n,:]
+            vi_norm[n]=abs(vi_mdd[0])
+            ve_mdd=np.transpose(all_eigenvecs[n,:,:]) @ ve_struct_bary[n,:]
+            ve_norm[n]=abs(ve_mdd[0])
     elif(dims_struct[1]):
         type_str="2D structure"
+        for n in range(len(time_struct_b)):
+            vi_mdd=np.transpose(all_eigenvecs[n,:,:]) @ vi_struct_bary[n,:]
+            vi_norm[n]=np.sqrt(vi_mdd[0]*vi_mdd[0]+vi_mdd[1]*vi_mdd[1])
+            ve_mdd=np.transpose(all_eigenvecs[n,:,:]) @ ve_struct_bary[n,:]
+            ve_norm[n]=np.sqrt(ve_mdd[0]*ve_mdd[0]+ve_mdd[1]*ve_mdd[1])
     elif(dims_struct[2]):
         type_str="3D structure"
+        vi_norm[n]=np.linalg.norm(vi_struct_bary[n,:])
+        ve_norm[n]=np.linalg.norm(ve_struct_bary[n,:])
 
     #do STD analysis
     '''
     Todo: 
-        -smooth the data to avoid turbulence making the analyses garbage
-        -display information, including:
-            -the components of all of the eigenvectors
-            -the dimensionality of the structure
-            -the magnitude of the velocity (compared with v_e and v_i perhaps)
-            -the velocity components (in the non-invariant directions of course)
         -give some thought to figuring out a better way of determining the structure extent (between all extrema? idk)
+            -repeat extrema finding for each structure, using same size limit as smoother
+            -take average of all crossings over all satellites to become the average crossing
+            -take largest structure that fits inside the structure of each satellite for total analysis
+            -spacecraft-individual stuff (e.g. size) can be done with individual sizes
         -do post-processing determination of whether the STD analysis was good
         -use the STD velocity(s) to determine the size of the structure
             +at each spacecraft? yes/no? can figure out later if desired for more statistics
                 *don't just do it badly/sketchily for more statistics though, that is bad research practice
     
     '''
-    tmp=msc.STD(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
-                rad_struct_sync,all_eigenvals,all_eigenvecs,dims_struct,
-                min_crossing_height)
+    velocs,optimal=msc.STD(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
+                               rad_struct_sync,all_eigenvals,all_eigenvecs,
+                               dims_struct,min_crossing_height)
+    vtot=np.linalg.norm(velocs,axis=1)
     
     if(REPLOT):
+        
         #plot it 
         mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
         plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
-        gridsize=(6,4)
+        gridsize=(6,2)
         fig=plt.figure(figsize=(16,12)) #width,height
-        ax1=plt.subplot2grid(gridsize,(0,0),colspan=2)
-        ax2=plt.subplot2grid(gridsize,(1,0),colspan=2)   
-        ax3=plt.subplot2grid(gridsize,(2,0),colspan=2) 
-        ax4=plt.subplot2grid(gridsize,(3,0),colspan=2)
-        ax5=plt.subplot2grid(gridsize,(4,0),colspan=2)
-        ax6=plt.subplot2grid(gridsize,(5,0),colspan=2)
+        ax1=plt.subplot2grid(gridsize,(0,0))
+        ax2=plt.subplot2grid(gridsize,(1,0))   
+        ax3=plt.subplot2grid(gridsize,(2,0)) 
+        ax4=plt.subplot2grid(gridsize,(3,0))
+        ax5=plt.subplot2grid(gridsize,(4,0))
+        ax6=plt.subplot2grid(gridsize,(5,0))
         ax6.axis('off')
-        ax7=plt.subplot2grid(gridsize,(0,2),colspan=2)
-        ax8=plt.subplot2grid(gridsize,(1,2),colspan=2)
-        ax9=plt.subplot2grid(gridsize,(2,2))
-        ax10=plt.subplot2grid(gridsize,(2,3))
-        ax11=plt.subplot2grid(gridsize,(3,2),colspan=2)
+        ax7=plt.subplot2grid(gridsize,(0,1))
+        ax8=plt.subplot2grid(gridsize,(1,1))
         #plot joined and smoothed B-fields
         for M in MMS:  
             bz=b_field_cut_sync[M][:,2]
@@ -279,31 +342,53 @@ for i in range(len(crossing_indices_M1)):
                                  lims=[min(time_cut_b),
                                        max(time_cut_b)],
                                  legend=eigenval_legend[j],logscale=True)  
-        #plot the eigenvectors for each eigenvector
-        eigenvecs_max=np.array([all_eigenvecs[n][:,0] for n in \
-                                                    range(len(all_eigenvecs))])
-        eigenvecs_mid=np.array([all_eigenvecs[n][:,1] for n in \
-                                                    range(len(all_eigenvecs))])
-        eigenvecs_min=np.array([all_eigenvecs[n][:,2] for n in \
-                                                    range(len(all_eigenvecs))])
+            
+        #plot the eigenvectors
+        ax_subset=[ax3,ax4,ax5]
         for j in range(3):
-            mmsp.tseries_plotter(fig,ax3,time_struct_b,eigenvecs_max[:,j],
-                                 labels=[type_str,'',''],lims=[min(time_cut_b),
-                                                             max(time_cut_b)],
-                                 legend=eigenvec_legend[j])
-            mmsp.tseries_plotter(fig,ax4,time_struct_b,eigenvecs_mid[:,j],
-                                 labels=[type_str,'',''],lims=[min(time_cut_b),
-                                                             max(time_cut_b)],
-                                 legend=eigenvec_legend[j])
-            mmsp.tseries_plotter(fig,ax5,time_struct_b,eigenvecs_min[:,j],
-                                 labels=[type_str,'',''],lims=[min(time_cut_b),
-                                                             max(time_cut_b)],
-                                 legend=eigenvec_legend[j])            
+            for k in range(3):
+                mmsp.tseries_plotter(fig,ax_subset[j],time_struct_b,
+                                     all_eigenvecs[:,k,j],
+                                     labels=eigenvec_label[j],
+                                     lims=[min(time_cut_b),max(time_cut_b)],
+                                     legend=eigenvec_legend[k])
+        #plot the structure velocities
+        for j in range(3):
+            mmsp.tseries_plotter(fig,ax7,time_struct_b,
+                                 velocs[:,j],
+                                 labels=veloc_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=veloc_legend[j])
+        mmsp.tseries_plotter(fig,ax7,time_struct_b,
+                                 vtot,
+                                 labels=veloc_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=veloc_legend[3]) 
+        #plot comparison of total normal velocities to ion/electron normal velocities
+        mmsp.tseries_plotter(fig,ax8,time_struct_b,
+                                 vtot,
+                                 labels=vcompare_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=vcompare_legend[0])
+        mmsp.tseries_plotter(fig,ax8,time_struct_b,
+                                 vi_norm,
+                                 labels=vcompare_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=vcompare_legend[1])   
+        mmsp.tseries_plotter(fig,ax8,time_struct_b,
+                                 ve_norm,
+                                 labels=vcompare_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=vcompare_legend[2]) 
         #add horizontal and vertical lines to plot (crossing + extent)
-        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5],time=crossing_times[i],
+        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8],time=crossing_times[i],
                    edges=crossing_struct_times[i],horiz=0.)
+         #add categorization information to plot
+        ax6.text(0.5,0.5,type_str,wrap=True,transform=ax6.transAxes,
+                 fontsize=16,ha='center',va='center')
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
-                                plot_out_name+str(i)+".png"), bbox_inches='tight')
+                                plot_out_name+str(i)+".png"), 
+                                bbox_inches='tight')
         plt.close(fig="all")                                   
 
    
@@ -314,3 +399,6 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
 #To-do list:
 #TODO: improve mechanism used to determine what time section to do the multi-spacecraft tech on
     #right now just what MMS1 says is the structure   
+#TODO: optimization- list appends are faster than numpy concatenates, so 
+    #read in data as list of numpy arrays and then concatenate it all along the right axis
+    #at the end for faster code
