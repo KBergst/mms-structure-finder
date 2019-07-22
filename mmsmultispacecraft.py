@@ -8,6 +8,8 @@ Home of functions to perform various multispacecraft techniques on MMS data
 
 import numpy as np
 import datetime as dt
+import mmstimes as mt
+import mmsstructs as ms
 
 def bartlett_interp(array,times,new_times,two_dt_s=1/128,two_DT_s=1/128,q=1):
     '''
@@ -62,6 +64,36 @@ def bartlett_interp(array,times,new_times,two_dt_s=1/128,two_DT_s=1/128,q=1):
         new_array=np.concatenate((new_array,new_values))
         
     return new_array
+
+def structure_crossing(b_fields,times,datagap):
+    '''
+    A multi-spacecraft approach to determining the average crossing time
+    Inputs:
+        b_fields- a dictionary with four values, each consisting of an array
+            of b field data from a particular spacecraft of form (datlength,3)
+        times- timestamps for the b_fields given (should be already synced)
+        datagap- amount of time to classify something as a data gap
+
+    Outputs:
+        bad_struct- a boolean indicating whether the structure is good or not
+    '''
+    avg_crossing_time=0
+    crossing_times=np.array([])
+    
+    bad_struct=False #True if all 4 spacecraft do not see the structure
+    #compute average crossing time
+    for b in b_fields.values():
+        is_crossing=ms.find_crossings(b[:,2],
+                                      times,datagap)
+        if len(is_crossing) is 0: #no crossing for this satellite
+            bad_struct=True
+            break
+        crossing_times=np.concatenate((crossing_times,times[is_crossing])) #add all crossings to list
+    #find average crossing time
+    if not bad_struct:
+        avg_crossing_time=mt.datetime_avg(crossing_times)
+
+    return bad_struct,avg_crossing_time  
 
 def barycentric_vectors(spacecrafts_coords):
     '''

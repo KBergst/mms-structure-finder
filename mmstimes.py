@@ -11,6 +11,7 @@ additional conversions later if needed/desired.
 
 import matplotlib as mpl
 import datetime as dt
+import numpy as np
 import pytz #for timezone info
 import spacepy.coordinates as spcoords
 from spacepy.time import Ticktock
@@ -91,13 +92,32 @@ def str2datetime(time_str):
     
     return time_dt  
 
+def datetime_avg(times):
+    '''
+    finds the average datetime out of a bunch
+    basically just converts to TTtime averages, then puts it back
+    Inputs:
+        times- the array of datetime objects to be averaged
+    Outputs:
+        avg_time- the average time represented as a datetime object
+    '''
+    TT_times=datetime2TTtime(times)
+    avg_TT_time=np.average(TT_times)
+    avg_time=TTtime2datetime(avg_TT_time)
+    
+    return avg_time
+
 def coord_transform(vecs,sys1,sys2,times):
     '''
     Uses spacepy to do coordinate transformations (assuming cartesian)
-    vecs- the vector of arrays in the old coordinates of shape (datlength,3)
-    sys1- string denoting the old coordinates e.g. 'GSE','GSM', etc.
-    sys2- string denoting the new coordinates e.g. 'GSE','GSM', etc.
-    times-array of timestamps for the vecs, as datetime objects in UTC time
+    Inputs:
+        vecs- the vector of arrays in the old coordinates of shape (datlength,3)
+        sys1- string denoting the old coordinates e.g. 'GSE','GSM', etc.
+        sys2- string denoting the new coordinates e.g. 'GSE','GSM', etc.
+        times-array of timestamps for the vecs, as datetime objects in UTC time
+    Outputs:
+        new_vecs- the vector of arrays in the new coordinates of shape 
+            (datlength,3)
     '''
     cvals=spcoords.Coords(vecs,sys1,'car')
     cvals.ticks=Ticktock(times,'UTC')

@@ -233,8 +233,7 @@ for M in MMS:
     #locate crossings and their directions
     crossing_indices_bz=ms.find_crossings(bz,time_reg_b,data_gap_time)
     crossing_signs_bz=ms.find_crossing_signs(bz,crossing_indices_bz)
-    crossing_indices_bz,crossing_signs_bz,max_indices,min_indices= \
-                                                        ms.find_maxes_mins(bz,
+    crossing_indices_bz,crossing_signs_bz= ms.refine_crossings(bz,
                                                         crossing_indices_bz,
                                                         crossing_signs_bz,
                                                         extrema_width,
@@ -242,10 +241,10 @@ for M in MMS:
     crossing_times=time_reg_b[crossing_indices_bz]
     #section the data and define structural extents
  #section the data and define structural extents
-    crossing_structs,crossing_struct_times=ms.structure_extent(
+    crossing_structs,crossing_struct_times=ms.structure_extent(bz,
                                     crossing_indices_bz,time_reg_b,
-                                    crossing_signs_bz,max_indices,min_indices,
-                                    len(bz))
+                                    crossing_signs_bz,extrema_width,
+                                    min_crossing_height,len(bz))
     crossing_windows,junk=ms.section_maker(crossing_structs,window_padding,
                                            len(bz))
     #process each crossing

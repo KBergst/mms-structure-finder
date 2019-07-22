@@ -100,12 +100,11 @@ def find_crossing_signs(array,indices):
     shifted_indices=list(shift)
     return np.sign(array[shifted_indices]-array[indices])
 
-def find_maxes_mins(array,indices,directions,width,min_height):
+def refine_crossings(array,indices,directions,width,min_height):
     '''
     Given list of zero crossings, finds maxes or mins between crossings
     Clean out crossings that don't attain at least 
     the minimum allowed crossing height
-    Also make maxes/mins list for defining the size of the windows/structures
     Inputs:
         array- the data array in question
         indices- the list of indices where zero crossings occur
@@ -118,20 +117,10 @@ def find_maxes_mins(array,indices,directions,width,min_height):
             screened
         directions[mask]-updated list-like object of directions with
             insufficent crossings screened
-        max_indices- tuple of indices where local maxima occur
-        min_indices- tuple of indices where local minima occur
     '''
     cleaned_indices_arr=np.array(indices) #to np array for processing purposes
-    #find indices of mins and maxes for later window/structure processing
-    max_indices_tmp=signal.argrelmax(array,order=width)
-    min_indices_tmp=signal.argrelmin(array,order=width)
-    #filter out mins/maxes which are not above the min_height
-    max_indices=tuple(filter(lambda x: array[x] > min_height,
-                             max_indices_tmp[0]))
-    min_indices=tuple(filter(lambda x: -1*array[x] > min_height,
-                             min_indices_tmp[0]))
-    
-    #filter out bad zero crossings using extrema heights
+    max_index=len(array)
+
     prev_exts=np.array([])
     next_exts=np.array([])
     for n,direc in enumerate(directions):
@@ -141,26 +130,26 @@ def find_maxes_mins(array,indices,directions,width,min_height):
                 prev_ext=np.amin(array[indices[n-1]:indices[n]])
             elif (n < len(indices)-1): #first index
                 next_ext=np.amax(array[indices[n]:indices[n+1]])
-                prev_ext=np.amin(array[indices[n]-50:indices[n]])
+                prev_ext=np.amin(array[0:indices[n]])
             elif (n == len(indices)-1) and n>0: #last index
-                next_ext=np.amax(array[indices[n]:indices[n]+50]) 
+                next_ext=np.amax(array[indices[n]:max_index]) 
                 prev_ext=np.amin(array[indices[n-1]:indices[n]])
             else: #both first and last index
-                next_ext=np.amax(array[indices[n]:indices[n]+50]) 
-                prev_ext=np.amin(array[indices[n]-50:indices[n]])
+                next_ext=np.amax(array[indices[n]:max_index]) 
+                prev_ext=np.amin(array[0:indices[n]])
         else: #crossing from pos to neg
             if (n < len(indices)-1) and n>0 : #index on each side
                 next_ext=np.amin(array[indices[n]:indices[n+1]])
                 prev_ext=np.amax(array[indices[n-1]:indices[n]])
             elif (n < len(indices)-1): #first index
                 next_ext=np.amin(array[indices[n]:indices[n+1]])
-                prev_ext=np.amax(array[indices[n]-50:indices[n]])
+                prev_ext=np.amax(array[0:indices[n]])
             elif (n== len(indices)-1) and n>0: #last index
-                next_ext=np.amin(array[indices[n]:indices[n]+50]) 
+                next_ext=np.amin(array[indices[n]:max_index]) 
                 prev_ext=np.amax(array[indices[n-1]:indices[n]])
             else: #both first and last index
-                next_ext=np.amin(array[indices[n]:indices[n]+50])
-                prev_ext=np.amax(array[indices[n]-50:indices[n]])
+                next_ext=np.amin(array[indices[n]:max_index])
+                prev_ext=np.amax(array[0:indices[n]])
         prev_exts=np.append(prev_exts,[prev_ext]) #add to list
         next_exts=np.append(next_exts,[next_ext]) #add to list
 
@@ -187,19 +176,20 @@ def find_maxes_mins(array,indices,directions,width,min_height):
                 i+=1
                 
     cleaned_indices=list(cleaned_indices_arr[mask]) #put back to list form
-    return cleaned_indices,directions[mask],max_indices,min_indices
+    return cleaned_indices,directions[mask]
 
-def structure_extent(indices,times,directions,maxes,mins,max_index,
+def structure_extent(array,indices,times,directions,width,min_height,max_index,
                      min_index=0):
     '''
     Like section_maker, but intended to determine the actual spatial extent
     Of the structure (using the direction of the crossing and nearest max/min)
     Inputs:
+        array- array in question
         indices- list of indices where crossings occur in the data array
         times- numpy array of the timeseries of the array which has zero crossings
         directions- list of directions of the crossings
-        maxes- tuple of indices where local maximums occur in the data array
-        mins- tuple of indices where local minimums occur in the data array
+        width- necessary width for extrema determination
+        min_height- the minimum allowed crossing height (absolute value)
         max_index- the maximum index of the data array (no data past it)
         min_index- the minimum index of the data array (default zero)
     Outputs:
@@ -208,10 +198,36 @@ def structure_extent(indices,times,directions,maxes,mins,max_index,
         times_list- list of two-element lists which contain the minimum and 
             maximum time for each structure
     '''
+    #find indices of mins and maxes for later window/structure processing
+    max_indices_tmp=signal.argrelmax(array,order=width)
+    min_indices_tmp=signal.argrelmin(array,order=width)
+    #filter out mins/maxes which are not above the min_height
+    max_indices=tuple(filter(lambda x: array[x] > min_height,
+                             max_indices_tmp[0]))
+    min_indices=tuple(filter(lambda x: -1*array[x] > min_height,
+                             min_indices_tmp[0]))
+    reduced_width=width
+    while (len(max_indices) is 0) or (isinstance(max_indices[0],np.ndarray)): #need at least one maximum index
+        if reduced_width is 0:
+            print("Could not find acceptable maximum index")
+            max_indices=tuple((1,max_index-2))
+            break
+        max_indices=signal.argrelmax(array,order=reduced_width)
+        reduced_width-=1
+        
+    reduced_width=width    
+    while (len(min_indices) is 0) or (isinstance(min_indices[0],np.ndarray)): #need at least one minimum index
+        if reduced_width is 0:
+            print("Could not find acceptable minimum index")
+            min_indices=tuple((1,max_index-2))
+            break
+        min_indices=signal.argrelmin(array,order=reduced_width)
+        reduced_width-=1    #filter out bad zero crossings using extrema heights   
+     
     size_list=[]
     times_list=[]
-    mins_arr=np.asarray(mins) #tuple to numpy array for using searches
-    maxes_arr=np.asarray(maxes)
+    mins_arr=np.asarray(min_indices) #tuple to numpy array for using searches
+    maxes_arr=np.asarray(max_indices)
 
     for n,current_index in enumerate(indices):
         if directions[n]==1: #crossing from negative to positive

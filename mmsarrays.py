@@ -98,7 +98,7 @@ def hamming_smooth(array,width):
     
     return smoothed_arr
 
-def smoothing(array):
+def smoothing(array,fixed=False,fixedwidth=5):
     '''
     for determining how large of a window to do hamming smoothing over
     sets a baseline ratio of 0.1 window/total, rounded to an even integer
@@ -106,10 +106,15 @@ def smoothing(array):
     Inputs:
         array- input array for smoothing, can be multidiml of shape
             (datlength,n) for n the number of different components
+        fixed-boolean that returns True if the width should be fixed. Default False
+        fixedwidth-if fixed width, use this as the width. Default 5.
     Outputs:
-        
+        smoothed_array- the smoothed array
     '''
-    width=(len(array[:,0])//10)*2
+    if not fixed:
+        width=(len(array[:,0])//10)*2
+    else:
+        width=fixedwidth
     
     if width < 3:
         #too small for meaningful smoothing
@@ -117,9 +122,12 @@ def smoothing(array):
         return array
     
     smoothed_array=np.empty_like(array)
-    for n in range(len(array[0,:])):
-        smoothed_array[:,n]=hamming_smooth(array[:,n],width)
-        
+    if len(array.shape) >1: #multiple arrays
+        for n in range(len(array[0,:])):
+            smoothed_array[:,n]=hamming_smooth(array[:,n],width)
+    else:
+        smoothed_array=hamming_smooth(array,width)
+    
     return smoothed_array
     
     

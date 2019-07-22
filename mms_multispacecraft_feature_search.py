@@ -48,6 +48,7 @@ timeseries_out_directory=os.path.join(path,plot_out_directory)
 data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify 
                                                   #something as a data gap
 extrema_width=10 #number of points to compare on each side to declare an extrema
+smoothed_extrema_width=10 #number of points to compare on each side to declare an extrema for the smoothed data
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 window_padding=20 #number of indices to add to each side of window
 ne_fudge_factor=0.001 #small amount of density to add to avoid NaN velocities
@@ -184,21 +185,19 @@ for M in MMS:
     ve[M]=tmp_ve_spline(TT_time_b[M]) #interpolate electron veloc to b-field timestamps    
 
 
-#find potential structure candidates from MMS 1
-bz_M1=b_field[MMS[0]][:,2]
+#find potential structure candidates from MMS 1 (data smoothed a small amount)
+bz_M1=ma.smoothing(b_field[MMS[0]][:,2],fixed=True,fixedwidth=6)
 crossing_indices_M1=ms.find_crossings(bz_M1,time_reg_b[MMS[0]],data_gap_time)
 crossing_signs_M1=ms.find_crossing_signs(bz_M1,crossing_indices_M1)
-crossing_indices_M1,crossing_signs_M1,max_indices_M1,min_indices_M1= \
-                                                    ms.find_maxes_mins(bz_M1,
-                                                    crossing_indices_M1,
-                                                    crossing_signs_M1,
-                                                    extrema_width,
-                                                    min_crossing_height)
-crossing_times=time_reg_b[MMS[0]][crossing_indices_M1]
-crossing_structs,crossing_struct_times=ms.structure_extent(
+crossing_indices_M1,crossing_signs_M1=ms.refine_crossings(bz_M1,
+                                                        crossing_indices_M1,
+                                                        crossing_signs_M1,
+                                                        extrema_width,
+                                                        min_crossing_height)
+crossing_structs,crossing_struct_times=ms.structure_extent(bz_M1,
                                 crossing_indices_M1,time_reg_b[MMS[0]],
-                                crossing_signs_M1,max_indices_M1,
-                                min_indices_M1,len(bz_M1))
+                                crossing_signs_M1,extrema_width,
+                                min_crossing_height,len(bz_M1))
 crossing_cuts,cut_struct_idxs=ms.section_maker(crossing_structs,window_padding,
                                                len(bz_M1))
   
@@ -252,16 +251,11 @@ for i in range(len(crossing_indices_M1)):
         ve_struct_bary=ve_struct_bary+ve_struct_sync[M]/len(MMS)
         
     #determine structures for multispacecraft techniques
-    bad_struct=False #True if all 4 spacecraft do not see the structure
-    for n in range(1,4): #over MMS 2,3,4
-        is_crossing=ms.find_crossings(b_field_struct_sync[MMS[n]][:,2],
-                                      time_struct_b,data_gap_time)
-        if len(is_crossing) is 0: #no crossing for this satellite
-            bad_struct=True
-                
+    bad_struct,crossing_time=msc.structure_crossing(b_field_struct_sync,
+                                                  time_struct_b,data_gap_time)
     if(bad_struct): #not able to do multispacecraft techniques
         continue
-
+    
     #do MDD analysis
     all_eigenvals,all_eigenvecs=msc.MDD(b_field_struct_sync,rad_struct_sync)
     dims_struct,tmp,D_struct,junk=msc.structure_diml(all_eigenvals)
@@ -295,7 +289,7 @@ for i in range(len(crossing_indices_M1)):
     '''
     Todo: 
         -give some thought to figuring out a better way of determining the structure extent (between all extrema? idk)
-            -repeat extrema finding for each structure, using same size limit as smoother
+            -repeat extrema finding for each structure, using same variable size limit?
             -take average of all crossings over all satellites to become the average crossing
             -take largest structure that fits inside the structure of each satellite for total analysis
             -spacecraft-individual stuff (e.g. size) can be done with individual sizes
@@ -381,7 +375,7 @@ for i in range(len(crossing_indices_M1)):
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=vcompare_legend[2]) 
         #add horizontal and vertical lines to plot (crossing + extent)
-        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8],time=crossing_times[i],
+        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8],time=crossing_time,
                    edges=crossing_struct_times[i],horiz=0.)
          #add categorization information to plot
         ax6.text(0.5,0.5,type_str,wrap=True,transform=ax6.transAxes,
@@ -399,6 +393,7 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
 #To-do list:
 #TODO: improve mechanism used to determine what time section to do the multi-spacecraft tech on
     #right now just what MMS1 says is the structure   
+    #may have to do for now
 #TODO: optimization- list appends are faster than numpy concatenates, so 
     #read in data as list of numpy arrays and then concatenate it all along the right axis
     #at the end for faster code
