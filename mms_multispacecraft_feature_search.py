@@ -52,6 +52,7 @@ smoothed_extrema_width=10 #number of points to compare on each side to declare a
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 window_padding=20 #number of indices to add to each side of window
 ne_fudge_factor=0.001 #small amount of density to add to avoid NaN velocities
+quality_min=0.5 #used in structure_classification, minimum accepted quality
 
 DEBUG=0 #chooses whether to stop at iteration 15 or not
 REPLOT=1 #chooses whether to regenerate the plots or not
@@ -114,6 +115,8 @@ veloc_legend=['Vx','Vy','Vz','Vtot']
 vcompare_labels=['Velocity at barycenter','Time','Normal velocity (km/S']
 vcompare_legend=['Structure normal velocity','Ion normal velocity',
                  'Electron normal velocity']
+j_labels=['MMS GSM curlometer current density vs. time','Time', 
+          r'Jy GSM (microA/m^2)'  ]
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -249,7 +252,10 @@ for i in range(len(crossing_indices_M1)):
         ve_struct_sync[M]=ve_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1]]
         ve_struct_bary=ve_struct_bary+ve_struct_sync[M]/len(MMS)
-        
+    #sync curlometer data also
+    j_cut_sync=msc.bartlett_interp(j_curl,time_reg_jcurl,time_cut_b)
+    j_struct_sync=j_cut_sync[cut_struct_idxs[i][0]:cut_struct_idxs[i][1],:]
+    
     #determine structures for multispacecraft techniques
     bad_struct,crossing_time=msc.structure_crossing(b_field_struct_sync,
                                                   time_struct_b,data_gap_time)
@@ -288,15 +294,7 @@ for i in range(len(crossing_indices_M1)):
     #do STD analysis
     '''
     Todo: 
-        -give some thought to figuring out a better way of determining the structure extent (between all extrema? idk)
-            -repeat extrema finding for each structure, using same variable size limit?
-            -take average of all crossings over all satellites to become the average crossing
-            -take largest structure that fits inside the structure of each satellite for total analysis
-            -spacecraft-individual stuff (e.g. size) can be done with individual sizes
         -do post-processing determination of whether the STD analysis was good
-        -use the STD velocity(s) to determine the size of the structure
-            +at each spacecraft? yes/no? can figure out later if desired for more statistics
-                *don't just do it badly/sketchily for more statistics though, that is bad research practice
     
     '''
     velocs,optimal=msc.STD(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
@@ -304,8 +302,27 @@ for i in range(len(crossing_indices_M1)):
                                dims_struct,min_crossing_height)
     vtot=np.linalg.norm(velocs,axis=1)
     
+    #calculate other properties of the structure (kind, size, etc.)
+    #determine signs of vex and jy
+    jy_sign,jy_qual=ma.find_avg_signs(j_struct_sync[:,1])
+    v_sign,v_qual=ma.find_avg_signs(velocs[:,0]) #x component of structure normal
+    #determine type of structure, size of structure
+    crossing_type,type_flag=ms.structure_classification(crossing_signs_M1[i],
+                                                        v_sign,v_qual,jy_sign,
+                                                        jy_qual,quality_min)
+    crossing_size=ms.structure_sizer([time_struct_b[0],
+                                          time_struct_b[-1]],vtot)
+    str_crossing_size=f"{crossing_size:.1f}"  #string formatting
+    
     if(REPLOT):
-        
+        #structure information for plot
+        jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
+            str(jy_qual)+"\n"
+        v_sign_label="vx sign is "+str(v_sign)+" with quality " \
+                        +str(v_qual)+"\n"
+        crossing_sign_label="Crossing type: "+crossing_type+"\n"
+        crossing_size_label="Crossing size: "+str_crossing_size+" km"+"\n"
+            
         #plot it 
         mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
         plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
@@ -320,6 +337,7 @@ for i in range(len(crossing_indices_M1)):
         ax6.axis('off')
         ax7=plt.subplot2grid(gridsize,(0,1))
         ax8=plt.subplot2grid(gridsize,(1,1))
+        ax9=plt.subplot2grid(gridsize,(2,1))
         #plot joined and smoothed B-fields
         for M in MMS:  
             bz=b_field_cut_sync[M][:,2]
@@ -374,12 +392,15 @@ for i in range(len(crossing_indices_M1)):
                                  labels=vcompare_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=vcompare_legend[2]) 
+        mmsp.tseries_plotter(fig,ax9,time_cut_b,j_cut_sync[:,1],j_labels,
+                             lims=[min(time_cut_b),max(time_cut_b)]) #plot jy
         #add horizontal and vertical lines to plot (crossing + extent)
-        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8],time=crossing_time,
+        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8,ax9],time=crossing_time,
                    edges=crossing_struct_times[i],horiz=0.)
          #add categorization information to plot
-        ax6.text(0.5,0.5,type_str,wrap=True,transform=ax6.transAxes,
-                 fontsize=16,ha='center',va='center')
+        ax6.text(0.5,0.5,type_str+'\n'+jy_sign_label+v_sign_label+ \
+                 crossing_sign_label+crossing_size_label,wrap=True,
+                 transform=ax6.transAxes,fontsize=16,ha='center',va='center')
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
                                 plot_out_name+str(i)+".png"), 
                                 bbox_inches='tight')

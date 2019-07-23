@@ -312,7 +312,10 @@ def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
         b_err-expected error threshold for the magnetic field data.
         datarate-expected time cadence of data. Default 1/128 s
     Outputs:
-        
+        normal_veloc- contains the normal velocity in GSM coordinates
+            a numpy array of shape (datlength,3)
+        optimal- returns False if the time difference wasn't able to fit the
+            criteria outlined in Shi et al. 2006
     '''
     optimal=True
     db_dt_avg=np.zeros_like(mdd_eigenvals)
@@ -344,22 +347,22 @@ def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
             lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
-            veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
+            veloc[n,0]=-1*lhs[0]/mdd_eigenvals[n,0]
             normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
     elif dims[1]: #only take two dimensions
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
             lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
-            veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
-            veloc[n,1]=lhs[1]/mdd_eigenvals[n,1]
+            veloc[n,0]=-1*lhs[0]/mdd_eigenvals[n,0]
+            veloc[n,1]=-1*lhs[1]/mdd_eigenvals[n,1]
             normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
     else: #do all three dimensions
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
             lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
-            veloc[n,0]=lhs[0]/mdd_eigenvals[n,0]
-            veloc[n,1]=lhs[1]/mdd_eigenvals[n,1]
-            veloc[n,2]=lhs[2]/mdd_eigenvals[n,2]
+            veloc[n,0]=-1*lhs[0]/mdd_eigenvals[n,0]
+            veloc[n,1]=-1*lhs[1]/mdd_eigenvals[n,1]
+            veloc[n,2]=-1*lhs[2]/mdd_eigenvals[n,2]
             normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
     
     return normal_veloc,optimal
