@@ -10,6 +10,11 @@ Definitions for functions that are used for fitting
 
 import math
 from scipy import special as sp
+from scipy import optimize as ot
+import matplotlib.pyplot as plt2
+import matplotlib.lines as mlines
+import sympy as sy
+
 
 #TODO: Write a function that normalizes the data 
 
@@ -29,8 +34,8 @@ def RectToCylindrical(RectArray):
         else:
             theta = -math.asin(y/r) + math.pi
         CylindArray[i][0] = r #Store radial distance in first position --> Azimuthal
-        CylindArray[i][2] = theta #Stores angular direction in second position --> Azimuthal 
-        CylindArray[i][1] = RectArray[i][1] #Z position left untouched, stored in 3rd position --> Axial Coordinate
+        CylindArray[i][2] = theta #Stores angular direction in third position --> Azimuthal 
+        CylindArray[i][1] = RectArray[i][1] #Z position left untouched, stored in 2rd position --> Axial Coordinate
      
     return CylindArray 
 
@@ -39,14 +44,25 @@ def getAzimuthal(maxVar, minVar):
     return B_azi
 
 
-def modelFluxRope(impact_param): #Mmodel flux rope based off of Smith et al., 2017
-    ''' We assume that B0 and the Helicity are equal to 1 so that they are normalized'''
+def modelFluxRope(impact_param, a, b): #Mmodel flux rope based off of Smith et al., 2017
+    #Elphic and Russell Non-Force Free Model
+    B0 = 1 #Assume B0 is equal to 0
+    #b = .35 Random, arbitrary constant number I thought fit well with the model 
+    #a = .35 Another random arbitrary constant I thought would fit well with the model
+    Br = B0 * math.exp( -1 * ((impact_param ** 2) / (b ** 2)))
+    alpha = (math.pi / 2) * (1 - math.exp( -1 * ((impact_param ** 2) / (a ** 2))))
+    B_axial = Br * math.cos(alpha)
+    B_azimuthal = Br * math.sin(alpha)
+    return B_axial, B_azimuthal
+
+def modelForceFreeFluxRope(impact_param):
+    #We assume that B0 and the Helicity are equal to 1 so that they are normalized
     B0 = 1 #should it equal 1? this is the missing piece?
     H = 1
     alpha = 2.4048 #From paper, constant alpha makes the flux rope linear
     B_axial = B0 * sp.jv(0, alpha * impact_param)
     B_azimuthal = B0 * H * sp.jv(1, alpha * impact_param)
-    return B_axial,B_azimuthal
+    return B_axial,B_azimuthal # --> FORCE FREE MODEL'''
 
 
 
@@ -81,16 +97,20 @@ def normalize2(oldArray, impact_param): #maximmum magnitude is based off of the 
     return normalized 
     
 
-def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 2017
+def chisquared1(RectArray, label): #first chi-squared test as defined by Smith et al., 2017
     CylindArray = RectToCylindrical(RectArray) 
     #not sure if this is correct -- made a lot of assumptions
     impactParameter = 0
     minChiSquared = 0
     chiSquaredValue = 0
+    
+    chiSquarePlotData = [0 for x in range(95)]
+    chiSquareInput = [x for x in range(95)]
+    
     isEven = False
     if len(RectArray) % 2 == 0:
         isEven = True
-        
+  
     for y in range(0, 95, 1):
         imp = y / float(100)
         #print("The chi-squared before turning to 0" + str(chiSquaredValue))
@@ -99,17 +119,26 @@ def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 
             radialDist = getRadialDistance(imp, len(RectArray), x, isEven)
             B_axial, B_azimuthal = modelFluxRope(radialDist)
            # print("B-Axial: " + str(B_axial) + "B-azimuthal: " + str(B_azimuthal))
-            chiSquaredValue += ((CylindArray[x][0] - B_azimuthal) ** 2) + ((CylindArray[0][1] - B_axial) ** 2)
+            chiSquaredValue += ((abs(CylindArray[x][0]) - B_azimuthal) ** 2) + ((abs(CylindArray[0][1]) - B_axial) ** 2)
             
             '''for  the model equation does it only give magnitudes in the cylindrical coordinate system?
                in the paper is the chi squared only comparing the magnitudes of the magnetic fields in the azimuthal direction?'''
         chiSquaredValue = chiSquaredValue / len(RectArray)
+        
+        chiSquarePlotData[y] = chiSquaredValue
+        
         if imp == 0.0:
             minChiSquared = chiSquaredValue
         elif chiSquaredValue < minChiSquared:
             minChiSquared = chiSquaredValue
             impactParameter = imp 
+            
+    plotComponent(chiSquarePlotData, chiSquareInput, label)
+    plotComponents(impactParameter, CylindArray, label)
     print("The impact parameter is" + str(impactParameter))
+    
+    
+    
     if impactParameter > 0.5:
         
         minChiSquared = False
@@ -118,20 +147,22 @@ def chisquared1(RectArray): #first chi-squared test as defined by Smith et al., 
         return minChiSquared, impactParameter 
 
 def getTheta(radialDist, s):
-    if (s == 0):
+    if (s == 0): #im not sure if this is correct
         theta = 0
     else:
-        theta = math.atan(radialDist / s)
+        theta = math.acos(s / radialDist)
     return theta
         
     
 def getComponents(theta, b_azi):
     b_model_min = b_azi * math.cos(theta)
     b_model_max = b_azi * math.sin(theta)
+    b_model_min = abs(b_model_min)
+    b_model_max = abs(b_model_max)
     return b_model_min, b_model_max
 
     
-def chiSquared2(RectArray, imp_Param): #No conversion is needed for this one
+def chiSquared2(RectArray, imp_Param, label): #No conversion is needed for this one
     RectArray = normalize(RectArray)
     numOfData = len(RectArray)
     chiSquare = 0    
@@ -143,9 +174,10 @@ def chiSquared2(RectArray, imp_Param): #No conversion is needed for this one
         radialDist = getRadialDistance(imp_Param, numOfData, x, isEven)
         theta = getTheta(radialDist, imp_Param)
         b_axi, b_azi = modelFluxRope(radialDist)
-        b_model_min, b_model_max = getComponents(theta, b_azi)
+        b_model_min, b_model_max = getComponents(theta, b_azi) 
         chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axi) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
     chiSquare = chiSquare / ((3 * numOfData) - 4)
+    plotComponents3(imp_Param, RectArray, label)
     return chiSquare
 
 def getRadialDistance(s, numOfDataPoints, index, isEven):
@@ -169,11 +201,133 @@ def getRadialDistance(s, numOfDataPoints, index, isEven):
     return radialDist
 
 
+
+def plotComponent(components1, xAxis, label):
+    plt2.figure(1)
+    plt2.plot(xAxis, components1, 'ro')
+    plt2.title("Chi-Square Value over Impact Parameters 0 to 0.95")
+    plt2.savefig('FittingPics/ImpactParameter' + str(label) + '.png')
+
+def plotComponents(impactParam, array, label):
     
+    isEven = False
+    if len(array) % 2 == 0:
+        isEven = True
+  
+    
+    CylindArray = array
+    plt2.figure(2)
+    plt2.title("Model vs Data Azimuthal and Axial")
+    for x in range(len(CylindArray)):
+            radialDist = getRadialDistance(impactParam, len(array), x, isEven)
+            B_axial, B_azimuthal = modelFluxRope(radialDist)
+            plt2.plot(x, B_axial, marker='o', markersize=3, color="red")
+            plt2.plot(x, B_azimuthal, marker='o', markersize=3, color="blue")
+            plt2.plot(x, abs(CylindArray[x][0]), marker='o', markersize=3, color="green")
+            plt2.plot(x, abs(CylindArray[x][1]), marker='o', markersize=3, color="yellow")
+            
+    
+    
+    b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
+                          markersize=10, label='Model B-Axial')
+    b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
+                          markersize=10, label='Model B-Azimuthal')
+    b4 = mlines.Line2D([], [], color='yellow', marker='o', linestyle='None',
+                          markersize=10, label='Data B-Axial')
+    b3 = mlines.Line2D([], [], color='green', marker='o', linestyle='None',
+                          markersize=10, label='Data B-Azimuthal')    
+    
+    
+    plt2.legend(handles=[b1, b2, b4, b3])
+    plt2.savefig('FittingPics/AzimuthalandAxial' + str(label) + '.png')
+    plt2.show()
+            
+    
+def plotComponents3(impactParam, array, label):
+    numOfData = len(array)   
+    isEven = False
+    radialDist = 0
+    plt2.figure(4)
+    plt2.title("Chi-Squared 2")
+    
+    if len(array) % 2 == 0:
+        isEven = True    
+    for x in range(numOfData):
+        radialDist = getRadialDistance(impactParam, numOfData, x, isEven)
+        theta = getTheta(radialDist, impactParam)
+        b_axi, b_azi = modelFluxRope(radialDist)
+        b_model_min, b_model_max = getComponents(theta, b_azi) 
+        plt2.plot(x, b_model_max, marker='o', markersize=3, color="red")
+        plt2.plot(x, b_axi, marker='o', markersize=3, color="green")
+        plt2.plot(x, b_model_min, marker='o', markersize=3, color="blue")
+        plt2.plot(x, abs(array[x][0]), marker='o', markersize=3, color="magenta")
+        plt2.plot(x, abs(array[x][1]), marker='o', markersize=3, color="cyan")
+        plt2.plot(x, abs(array[x][2]), marker='o', markersize=3, color="yellow")
+        
+        
+        
+        
+    b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
+                          markersize=10, label='Model Max')
+    b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
+                          markersize=10, label='Model Min')
+    b3 = mlines.Line2D([], [], color='green', marker='o', linestyle='None',
+                          markersize=10, label='Model Axial')
+    b4 = mlines.Line2D([], [], color='magenta', marker='o', linestyle='None',
+                          markersize=10, label='Data Max')    
+    b5 = mlines.Line2D([], [], color='yellow', marker='o', linestyle='None',
+                          markersize=10, label='Data Min')
+    b6 = mlines.Line2D([], [], color='cyan', marker='o', linestyle='None',
+                          markersize=10, label='Data Axial') 
+    
+    plt2.legend(handles=[b1, b2, b3, b4, b5, b6])    
+    plt2.savefig('FittingPics/Components' + str(label) + '.png')
+    plt2.show()
+
+
+def plotBvsR(DataArray, impactParam):        
+    normArray = DataArray
+    isEven = False
+    if len(normArray) % 2 == 0:
+        isEven = True  
+        
+    plt2.figure(5)
+    plt2.title("Linearized Magnetic field and Radius Data(Supposedly)")
+    magnitude = [0 for x in range(len(normArray))]
+    for p in range(len(normArray)):
+        magnitude[p] = math.log((normArray[p][0] ** 2) + (normArray[p][1] ** 2) + (normArray[p][2] ** 2))
+        r = getRadialDistance(impactParam, len(normArray), p, isEven)
+        r = r ** 2
+        plt2.plot(r, magnitude[p], marker='o', markersize=3, color="green")
+    plt2.show()
+    
+
 
         
     
-        
+def derivativeBMax(s, a, b):
+    B0 = 1
+    x = sy.symbols('x', real=True)
+    num1 = B0 * sy.exp(-(s**2 + x ** 2)/ b**2)
+    num2 = sy.sin(sy.atan(sy.sqrt(s ** 2 + x ** 2) / s)) 
+    num3 = sy.sin((math.pi/2) * (1 - sy.exp(-(s**2 + x ** 2)/ a**2)))
+    bMax = num1 * num2 * num3
+    bMaxPrime = sy.diff(bMax, x)
+    print(str(bMaxPrime))
+    zero1 = ot.brentq(sy.lambdify(x, bMaxPrime), -2, 0)
+    zero2 = ot.brentq(sy.lambdify(x, bMaxPrime), 0, 2)
+    return zero1, zero2 
+    
+    
+def radiusRange(zeroesArray, s):
+    lowerBound = math.sqrt((zeroesArray[0] ** 2) + (s ** 2))
+    upperBound = math.sqrt((zeroesArray[0] ** 2) + (s ** 2))
+    bounds = [lowerBound, upperBound]
+    return bounds
+    
+    
+    
+    
     
     
     

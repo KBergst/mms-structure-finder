@@ -65,7 +65,7 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
 REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=0 #chooses whether to stop at iteration 15 or not
+DEBUG=1 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -117,9 +117,12 @@ type_dict={
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
 
+counter = 0
+
 #repeating for each satellite
 for M in MMS:
-    #print("One Satellite")
+    counter = counter + 1
+    print("Satellite " + str(counter))
     MMS_structure_counts[M]={type_dict[0]: 0,type_dict[1]: 0,
                              type_dict[2]: 0,
                              type_dict[3]: 0,
@@ -169,8 +172,11 @@ for M in MMS:
     TT_time_ni=np.array([])
     TT_time_ne=np.array([])
     
+
+    
     for b_stub,j_stub,dis_stub,des_stub in zip(b_list,j_list,dis_list,
                                                des_list):
+    
         #create full paths
         b_file=os.path.join(path,data_dir,M,b_stub)
         j_file=os.path.join(path,data_dir,M,j_stub)
@@ -245,10 +251,13 @@ for M in MMS:
                                     crossing_indices_bz,time_reg_b,
                                     crossing_signs_bz,max_indices,min_indices,
                                     len(bz))
+    
+    label = 0
+    
     #process each crossing
     for i in range(len(crossing_indices_bz)):
-    
-        if (i==15 and DEBUG): #debug option
+        label = label + 1
+        if (i==100 and DEBUG): #debug option
             #check how long the code took to run
             end=time.time()
             print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
@@ -371,33 +380,46 @@ for M in MMS:
         
         
         '''
-        minchi, impParam = mf.chisquared1(b_mva_struct)
+        
+        
+        
+        #minchi, impParam = mf.chisquared1(b_mva_struct, label)
         normArray = mf.normalize(b_mva_struct)
-        isRejected = False
-        #cylinArray = mf.RectToCylindrical(b_mva_struct)
+        mf.plotBz(normArray)
+        #isRejected = False
+        '''
+        cylinArray = mf.RectToCylindrical(b_mva_struct)
         #B_axi, B_azi = mf.modelFluxRope(0.5)
         #print("B_axial: " + str(B_axi) + "B_azi: " + str(B_azi))
         if (minchi == False or minchi > 0.15):
-            print ("The event was rejected" + "MinchiSquared value" + str(minchi))
+            print ("The event was rejected" + " MinchiSquared value" + str(minchi))
             isRejected = True
         else:
             print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam))
         if(isRejected == False):
-            chiSquare2 = mf.chiSquared2(b_mva_struct, impParam)
+            chiSquare2 = mf.chiSquared2(b_mva_struct, impParam, label)
             print ("Second chi-square test value" + str(chiSquare2))
-        
+            
+               
         magnitude = [0 for x in range(len(normArray))]
         for p in range(len(normArray)):
             magnitude[p] = (normArray[p][0] ** 2) + (normArray[p][1] ** 2) + (normArray[p][2] ** 2)
         x = np.arange(0, len(normArray), 1); 
         v = np.vectorize(db.d)
-        plt.plot(x, magnitude)
+        plt.figure(0)
+        plt.plot(x, magnitude, label = 'Magnitude - Data')
+    
         v = np.vectorize(db.y)
         z = ((x - (len(normArray) / 2)) / len(normArray) ) * .95
-        plt.plot(x, v(z))
-        plt.show()
+        plt.title("Magnitude")
+        plt.plot(x, v(z), label = 'Magnitude - Model')
+        plt.legend() 
+        
+        plt.savefig('FittingPics/Magnitude' + str(label) + '.png')
+        
+        plt.show()'''
 
-       
+
         
         
         

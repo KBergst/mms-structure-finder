@@ -1,0 +1,2 @@
+The impact parameter is0.94
+The event was rejectedMinchiSquared valueFalse
