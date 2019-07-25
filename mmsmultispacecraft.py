@@ -31,7 +31,8 @@ def bartlett_interp(array,times,new_times,two_dt_s=1/128,two_DT_s=1/128,q=1):
     '''
     #convert time cadences to timedeltas
     two_dt=dt.timedelta(seconds=two_dt_s)
-    
+    if len(array.shape) < 2: #not multidiml array
+        array=array.reshape((len(array),1))
     new_array=np.empty((0,len(array[0,:])))
     for new_time in new_times: 
         l=np.searchsorted(times,new_time-2*q*two_dt,side="right")
@@ -229,12 +230,16 @@ def MDD(b_fields,spacecrafts_coords):
     #flip all eigenvectors for the structure into a standardized direction
     datlength=np.size(all_eigenvecs,axis=0)
     center_eigenvecs=all_eigenvecs[datlength//2,:,:]
+    if center_eigenvecs[1,2] < 0: #invariant dir. aligned with negative y GSE, don't want that
+        center_eigenvecs=center_eigenvecs*-1
     for n in range(datlength): #probably a faster way to do than nested for loops
         for i in range(3):
             if np.dot(center_eigenvecs[:,i],all_eigenvecs[n,:,i]) < 0:
                 all_eigenvecs[n,:,i]=-1*all_eigenvecs[n,:,i]
+    avg_eigenvecs=np.average(all_eigenvecs,axis=0) #take average of all eigenvecs
+    unit_eigenvecs=avg_eigenvecs/np.linalg.norm(avg_eigenvecs,axis=0)
     
-    return all_eigenvals, all_eigenvecs    
+    return all_eigenvals, all_eigenvecs,unit_eigenvecs    
 
 def structure_diml(mdd_eigenvals):
     '''
@@ -343,11 +348,13 @@ def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
     grad_B=spatial_gradient(b_field_struct,spacecrafts_coords)
     
     #do the STD analysis for each spacecraft
-    if dims[0]: #only take one dimension
+    if dims[2]: #do all three dimensions
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
             lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
             veloc[n,0]=-1*lhs[0]/mdd_eigenvals[n,0]
+            veloc[n,1]=-1*lhs[1]/mdd_eigenvals[n,1]
+            veloc[n,2]=-1*lhs[2]/mdd_eigenvals[n,2]
             normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
     elif dims[1]: #only take two dimensions
         for n in range(struct_idxs[1]-struct_idxs[0]):
@@ -356,13 +363,11 @@ def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
             veloc[n,0]=-1*lhs[0]/mdd_eigenvals[n,0]
             veloc[n,1]=-1*lhs[1]/mdd_eigenvals[n,1]
             normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
-    else: #do all three dimensions
+    else: #only take one dimension
         for n in range(struct_idxs[1]-struct_idxs[0]):
             dbdt=db_dt_avg[n,:]
             lhs= dbdt @ np.transpose(grad_B[n]) @ mdd_eigenvecs[n,:,:]
             veloc[n,0]=-1*lhs[0]/mdd_eigenvals[n,0]
-            veloc[n,1]=-1*lhs[1]/mdd_eigenvals[n,1]
-            veloc[n,2]=-1*lhs[2]/mdd_eigenvals[n,2]
             normal_veloc[n,:]= mdd_eigenvecs[n,:,:] @ veloc[n,:]
     
     return normal_veloc,optimal

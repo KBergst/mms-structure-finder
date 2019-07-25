@@ -46,7 +46,7 @@ def electron_veloc(j,time_j,vi,ni,time_ni,ne,time_ne):
     Used to calculate the electron velocity from curlometer 
     current, ion velocity, and electron and ion densities.
     Inputs:
-        j- array with the curlometer current in microAmps
+        j- array with the curlometer current in microAmps/m^2
         time_j- the timeseries for the curlometer current array (nanosecs)
         vi- the ion velocity in km/s
         ni- the ion density in cm^-3
@@ -59,7 +59,7 @@ def electron_veloc(j,time_j,vi,ni,time_ni,ne,time_ne):
     TODO: calculate all electron velocity components and remove the need to use
         lists by using the np.vstack method
     '''
-    vi_interp=interp.interp1d(time_ni,vi[:,0],kind='linear',
+    vi_interp=interp.interp1d(time_ni,vi,kind='linear',axis=0,
                               assume_sorted=True)
     ni_interp=interp.interp1d(time_ni,ni, kind='linear',
                               assume_sorted=True)

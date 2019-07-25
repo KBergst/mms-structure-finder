@@ -40,13 +40,14 @@ def fitfn_pwr(x,a,b):
     
     return pwr_fn
 
-def size_fitter(x,y,fitfn):
+def size_fitter(x,y,fitfn,guess):
     '''
     wrapper for fitting the size histograms 
     Inputs:
         x- the independent variable data to be fit
         y- the dependent variable data to be fit (same dimension as x)
         fitfn- the fitting function to be used
+        guess- guess for the fit parameters (depend on the fitting function used)
     Outputs:
         x_smooth- the fit independent variables
         y_smooth- the fit dependent variables
@@ -57,7 +58,7 @@ def size_fitter(x,y,fitfn):
     x_for_fit=x[max_idx:]
     y_for_fit=y[max_idx:]
     popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit,
-                           p0=[y[max_idx],0.005])
+                           p0=guess)
     fit_bdy=[x_for_fit[0],x_for_fit[-1]]
     x_smooth=np.linspace(fit_bdy[0],fit_bdy[1],num=1000)
     y_smooth=fitfn(x_smooth,*popt)
@@ -348,6 +349,8 @@ def bar_charter(ax,data,labels):
         ax- the mpl Axes object used
         data- a dictionary of dictionaries
             outer dictionary gives the legend groups (e.g. MMS1, MMS2, ...)
+                if no desired legend, outer dictionary contains a blank string
+                as a key
             inner dictionary gives the different values for the bars
             (e.g. plasmoid, current sheet)
             (MUST be the same keys over all groups!)
@@ -360,13 +363,19 @@ def bar_charter(ax,data,labels):
     '''
     spacing=0.2  #desired distance between bars of different groups
     legends=list(data.keys())
+        
     ind=np.arange(len(data[legends[0]]))  #number of indices
-    width=(1. - spacing)/len(data[legends[0]])  #width of each bar
+    width=(1. - spacing)/len(legends)  #width of each bar
     data_bars=[]  #list of the parts of the bar chart
     
     for i,dataset in enumerate(legends):
+        if dataset is '':
+            legend=None
+        else:
+            legend=dataset
+            
         rect=ax.bar(ind-(0.5-spacing/2.)+i*width, data[dataset].values(), 
-                    width, label=dataset)
+                    width, label=legend)
         data_bars.append(rect)
         
     ax.legend(edgecolor='black')
@@ -459,8 +468,12 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
             for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
                 bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
                                       for i in range(len(bins)-1)])
-                x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp)
-                x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr)
+                pwr_guess=[max(arr),-1.]
+                exp_guess=[max(arr),0.005]
+                x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp,
+                                                   exp_guess)
+                x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr,
+                                                   pwr_guess)
                 basic_plotter(axs[i],x_exp,y_exp,
                               legend='Exponential fit ${} e^{{-{}x}}$' \
                               .format(f"{params_exp[0]:.2f}",
@@ -517,22 +530,22 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                       logscale=log))
     axs=[ax1,ax2,ax3,ax4,ax5] #for doing the fits
     
-    if (attr == 'size'): #do fitting
-        arrays=[item[0] for item in outs]
-        bin_edges=[item[1] for item in outs]
-        for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
-            bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
-                                  for i in range(len(bins)-1)])
-            x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp)
-            x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr)
-            basic_plotter(axs[i],x_exp,y_exp,
-                          legend='Exponential fit ${} e^{{-{}x}}$' \
-                          .format(f"{params_exp[0]:.2f}",
-                                         f"{params_exp[1]:.2f}"))
-            basic_plotter(axs[i],x_pwr,y_pwr,
-                          legend='Power law fit ${} x^{{ {} }}$' \
-                          .format(f"{params_pwr[0]:.2f}",
-                                         f"{params_pwr[1]:.2f}")) 
+#    if (attr == 'size'): #do fitting
+#        arrays=[item[0] for item in outs]
+#        bin_edges=[item[1] for item in outs]
+#        for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
+#            bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
+#                                  for i in range(len(bins)-1)])
+#            x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp)
+#            x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr)
+#            basic_plotter(axs[i],x_exp,y_exp,
+#                          legend='Exponential fit ${} e^{{-{}x}}$' \
+#                          .format(f"{params_exp[0]:.2f}",
+#                                         f"{params_exp[1]:.2f}"))
+#            basic_plotter(axs[i],x_pwr,y_pwr,
+#                          legend='Power law fit ${} x^{{ {} }}$' \
+#                          .format(f"{params_pwr[0]:.2f}",
+#                                         f"{params_pwr[1]:.2f}")) 
     
     suffix=''
     if log:
@@ -633,3 +646,131 @@ def structure_scatter_maker(data,attr1,attr2,out,structure_key):
                              .format(attr1,attr2)),
                 bbox_inches='tight')
     plt.close(fig='all')
+
+def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
+                         log=False):
+    '''
+    A specialized function for plotting histograms of various structure
+    attributes for the multispacecraft script.
+    Inputs:
+        data-A list of structures.
+        attr- a string naming the desired attribute being plotted 
+            (e.g. size)- MUST be a float valued attribute!
+        out- A string containing the desired output location
+        bins_num- number of bins desired for the histogram
+        structure_key- list of the different structure types, as strings
+        log-True if want log scale, False if not, default is False
+    Outputs:
+        no output (void)
+        Writes the histograms to a file at the given output location
+    '''
+    #extract information about the units and plurals of the desired attribute
+    struct_ex=data[0] #returns first structure in array
+    attrs=struct_ex.plurals[attr]
+    attr_units=struct_ex.units[attr]
+    attr_txt=textify(attr)
+    #make histograms
+    for structure_type in structure_key:
+        #structure data
+        labels=['{} of {} over all satellites'.format(attrs.capitalize(),
+                    structure_type),
+                    '{} ({})'.format(attr_txt.capitalize(),
+                                     attr_units),
+                    'Number of instances']        
+        total_data=np.array([])
+        for structure in data:
+            if structure.kind == structure_type:
+                structure_dat=getattr(structure,attr)                                          
+                total_data=np.append(total_data,structure_dat)
+        
+        all_limits=[min(total_data),max(total_data)]
+        #plot everything    
+        mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
+        plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
+        fig,ax=plt.subplots()
+        
+        outs=histogram_plotter(ax,total_data,labels,all_limits,
+                          n_bins=bins_num,logscale=log)
+        if ((attr == 'size' or attr == 'normal_speed') \
+                                    and (structure_type == 'plasmoids' \
+                                or structure_type == 'pull current sheets' \
+                                or structure_type == 'push current sheets')): #do fitting
+            arr=outs[0]
+            bins=outs[1]
+            bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
+                                  for i in range(len(bins)-1)])
+            pwr_guess=[max(arr),-1.]
+            exp_guess=[max(arr),0.005]
+            x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp,
+                                               exp_guess)
+            x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr,
+                                               pwr_guess)
+            basic_plotter(ax,x_exp,y_exp,
+                          legend='Exponential fit ${} e^{{-{}x}}$' \
+                          .format(f"{params_exp[0]:.2f}",
+                                     f"{params_exp[1]:.3f}"))
+            basic_plotter(ax,x_pwr,y_pwr,
+                          legend='Power law fit ${} x^{{ {} }}$' \
+                          .format(f"{params_pwr[0]:.2f}",
+                                     f"{params_pwr[1]:.2f}")) 
+        if log:
+            structure_type+='_log'
+            
+        fig.savefig(os.path.join(out,"{}_hist_{}.png".format(attr,
+                                 urlify(structure_type))), bbox_inches='tight')
+        plt.close(fig='all')
+
+def msc_structure_scatter_maker(data,attr1,attr2,out,structure_key):
+    '''
+    A specialized function for plotting scatter plots of various structure
+    attributes against each other
+    Inputs:
+        data- A list of structures.
+        attr1- a string naming the desired x-axis attribute being plotted 
+            (e.g. size)- MUST be a float valued attribute!
+        attr2- a string naming the desired y-axis attribute being plotted 
+            (e.g. size)- MUST be a float valued attribute!
+        out- A string containing the desired output location
+        structure_key- list of the different structure types, as strings
+    Outputs:
+        no output (void)
+        Writes the histograms to a file at the given output location
+    '''
+    #extract information about the units and plurals of the desired attributes
+    struct_ex=data[0] #returns first structure in array
+    attr1s=struct_ex.plurals[attr1]
+    attr2s=struct_ex.plurals[attr2]
+    attr1_units=struct_ex.units[attr1]
+    attr2_units=struct_ex.units[attr2]
+    attr1_txt=textify(attr1)
+    attr2_txt=textify(attr2)
+    #make scatter plots
+    for structure_type in structure_key:
+        #structure data
+        labels_tot=['{} versus {} of {}' \
+                    .format(attr2s.capitalize(),attr1s.capitalize(),
+                            structure_type),
+                    '{} ({})'.format(attr1_txt.capitalize(),
+                                     attr1_units),
+                    '{} ({})'.format(attr2_txt.capitalize(),
+                                     attr2_units)]
+        
+        #get plot ready
+        mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
+        plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
+        fig,ax=plt.subplots(figsize=(6,6))
+        total_data1=np.array([])
+        total_data2=np.array([])
+        for structure in data:
+            if structure.kind == structure_type:
+                data1=getattr(structure,attr1)   
+                data2=getattr(structure,attr2)
+                total_data1=np.append(total_data1,data1)
+                total_data2=np.append(total_data2,data2)
+                
+                scatter_plotter(ax,total_data1,total_data2,labels_tot)
+            
+        fig.savefig(os.path.join(out,"{}_{}_scatter_{}.png".format(attr1,attr2,
+                                 urlify(structure_type))), bbox_inches='tight')
+        plt.close(fig='all')
+        
