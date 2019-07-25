@@ -65,7 +65,7 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
 REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=1 #chooses whether to stop at iteration 15 or not
+DEBUG=0 #chooses whether to stop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -381,13 +381,11 @@ for M in MMS:
         
         '''
         
+
+        minchi, impParam = mf.chisquared1(b_mva_struct, label)
+        normArray = mf.RectToCylindrical(b_mva_struct)
+        isRejected = False
         
-        
-        #minchi, impParam = mf.chisquared1(b_mva_struct, label)
-        normArray = mf.normalize(b_mva_struct)
-        mf.plotBz(normArray)
-        #isRejected = False
-        '''
         cylinArray = mf.RectToCylindrical(b_mva_struct)
         #B_axi, B_azi = mf.modelFluxRope(0.5)
         #print("B_axial: " + str(B_axi) + "B_azi: " + str(B_azi))
@@ -397,10 +395,11 @@ for M in MMS:
         else:
             print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam))
         if(isRejected == False):
-            chiSquare2 = mf.chiSquared2(b_mva_struct, impParam, label)
-            print ("Second chi-square test value" + str(chiSquare2))
+            mf.curveFit(cylinArray, impParam)
+            #chiSquare2 = mf.chiSquared2(b_mva_struct, impParam, label)
+            #print ("Second chi-square test value" + str(chiSquare2))
             
-               
+        '''       
         magnitude = [0 for x in range(len(normArray))]
         for p in range(len(normArray)):
             magnitude[p] = (normArray[p][0] ** 2) + (normArray[p][1] ** 2) + (normArray[p][2] ** 2)

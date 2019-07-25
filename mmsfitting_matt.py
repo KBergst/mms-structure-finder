@@ -13,6 +13,7 @@ from scipy import special as sp
 from scipy import optimize as ot
 import matplotlib.pyplot as plt2
 import matplotlib.lines as mlines
+import numpy as np
 import sympy as sy
 
 
@@ -117,7 +118,7 @@ def chisquared1(RectArray, label): #first chi-squared test as defined by Smith e
         chiSquaredValue = 0 
         for x in range(len(RectArray)):
             radialDist = getRadialDistance(imp, len(RectArray), x, isEven)
-            B_axial, B_azimuthal = modelFluxRope(radialDist)
+            B_axial, B_azimuthal = modelForceFreeFluxRope(radialDist)
            # print("B-Axial: " + str(B_axial) + "B-azimuthal: " + str(B_azimuthal))
             chiSquaredValue += ((abs(CylindArray[x][0]) - B_azimuthal) ** 2) + ((abs(CylindArray[0][1]) - B_axial) ** 2)
             
@@ -133,8 +134,8 @@ def chisquared1(RectArray, label): #first chi-squared test as defined by Smith e
             minChiSquared = chiSquaredValue
             impactParameter = imp 
             
-    plotComponent(chiSquarePlotData, chiSquareInput, label)
-    plotComponents(impactParameter, CylindArray, label)
+    #plotComponent(chiSquarePlotData, chiSquareInput, label)
+    #plotComponents(impactParameter, CylindArray, label)
     print("The impact parameter is" + str(impactParameter))
     
     
@@ -177,7 +178,7 @@ def chiSquared2(RectArray, imp_Param, label): #No conversion is needed for this 
         b_model_min, b_model_max = getComponents(theta, b_azi) 
         chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axi) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
     chiSquare = chiSquare / ((3 * numOfData) - 4)
-    plotComponents3(imp_Param, RectArray, label)
+    #plotComponents3(imp_Param, RectArray, label)
     return chiSquare
 
 def getRadialDistance(s, numOfDataPoints, index, isEven):
@@ -216,31 +217,34 @@ def plotComponents(impactParam, array, label):
   
     
     CylindArray = array
-    plt2.figure(2)
-    plt2.title("Model vs Data Azimuthal and Axial")
+    plt2.figure(7)
+    #plt2.title("Model vs Data Azimuthal and Axial")
+    ran = 1 - getMinRadial(array, impactParam)
     for x in range(len(CylindArray)):
-            radialDist = getRadialDistance(impactParam, len(array), x, isEven)
-            B_axial, B_azimuthal = modelFluxRope(radialDist)
-            plt2.plot(x, B_axial, marker='o', markersize=3, color="red")
-            plt2.plot(x, B_azimuthal, marker='o', markersize=3, color="blue")
-            plt2.plot(x, abs(CylindArray[x][0]), marker='o', markersize=3, color="green")
-            plt2.plot(x, abs(CylindArray[x][1]), marker='o', markersize=3, color="yellow")
+            y = ((x * ran) / len(CylindArray)) + getMinRadial(array, impactParam)
+            
+            #radialDist = getRadialDistance(impactParam, len(array), x, isEven)
+            #B_axial, B_azimuthal = modelFluxRope(radialDist)
+            #plt2.plot(x, B_axial, marker='o', markersize=3, color="red")
+            #plt2.plot(x, B_azimuthal, marker='o', markersize=3, color="blue")
+            plt2.plot(y, abs(CylindArray[x][0]), marker='o', markersize=3, color="blue")
+            plt2.plot(y, abs(CylindArray[x][1]), marker='o', markersize=3, color="red")
             
     
     
-    b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
-                          markersize=10, label='Model B-Axial')
-    b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
-                          markersize=10, label='Model B-Azimuthal')
-    b4 = mlines.Line2D([], [], color='yellow', marker='o', linestyle='None',
+   # b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
+   #                       markersize=10, label='Model B-Axial')
+   # b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
+   #                       markersize=10, label='Model B-Azimuthal')
+    b4 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
                           markersize=10, label='Data B-Axial')
-    b3 = mlines.Line2D([], [], color='green', marker='o', linestyle='None',
+    b3 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
                           markersize=10, label='Data B-Azimuthal')    
     
     
-    plt2.legend(handles=[b1, b2, b4, b3])
-    plt2.savefig('FittingPics/AzimuthalandAxial' + str(label) + '.png')
-    plt2.show()
+    plt2.legend(handles=[b4, b3])
+    #plt2.savefig('FittingPics/AzimuthalandAxial' + str(label) + '.png')
+    #plt2.show()
             
     
 def plotComponents3(impactParam, array, label):
@@ -324,10 +328,56 @@ def radiusRange(zeroesArray, s):
     upperBound = math.sqrt((zeroesArray[0] ** 2) + (s ** 2))
     bounds = [lowerBound, upperBound]
     return bounds
+
+def bAxial(r, a, b):
+    B0 = 1
+    bR = B0 * np.exp(-(np.power(r,2))/ np.power(b,2))
+    alphaR = np.sin((math.pi/2) * (1 - np.exp(-(np.power(r,2))/ np.power(a,2))))
+    return bR * np.cos(alphaR)
+
+def bAzimuthal(r, a, b):
+    B0 = 1
+    bR = B0 * np.exp(-(np.power(r,2))/ np.power(b,2))
+    alphaR = np.sin((math.pi/2) * (1 - np.exp(-(np.power(r,2))/ np.power(a,2))))
+    return bR * np.sin(alphaR)
+
+def curveFit(normArray, impactParam):
+    plt2.figure(7)
+    #bAxial2 = np.vectorize(bAxial)
+    #bAzimuthal2 = np.vectorize(bAzimuthal)
+    isEven = False
+    if len(normArray) % 2 == 0:
+        isEven = True  
+    xValues = [0 for i in range(len(normArray))]
+    for i in range(len(normArray)):
+        xValues[i] = getRadialDistance(impactParam, len(normArray), i, isEven)
+        
+    bAxialY = [0 for i in range(len(normArray))]
+    for i in range(len(normArray)):
+        bAxialY[i] = normArray[i][1]
+    poptBAxial, pcovBAxial = ot.curve_fit(bAxial, xValues, bAxialY)
     
+    bAzimuthalY = [0 for i in range(len(normArray))]
+    for i in range(len(normArray)):
+        bAzimuthalY[i] = normArray[i][0]
+    poptBAzimuthal, pcovBAzimuthal = ot.curve_fit(bAzimuthal, xValues, bAzimuthalY)
     
+    plotComponents(impactParam, normArray, 1)
     
+    plt2.plot(xValues, bAxial(xValues, *poptBAxial), 'r-', label='fit: a=%5.3f, b=%5.3f' % tuple(poptBAxial))
+    plt2.plot(xValues, bAzimuthal(xValues, *poptBAzimuthal), 'b-', label='fit: a=%5.3f, b=%5.3f' % tuple(poptBAzimuthal))
     
+    plt2.xlabel('x')
+    plt2.ylabel('y')
+    plt2.legend()
+    plt2.show()
     
+
+def getMinRadial(normArray, impParam):
+    isEven = False
+    if len(normArray) % 2 == 0:
+        isEven = True  
+    half = len(normArray) / 2
+    return getRadialDistance(impParam, len(normArray), half, isEven)
     
     
