@@ -100,9 +100,11 @@ def hamming_smooth(array,width):
 
 def smoothing(array,fixed=False,fixedwidth=5):
     '''
+    Wrapper to allow smoothing of multidimensional arrays
     for determining how large of a window to do hamming smoothing over
-    sets a baseline ratio of 0.1 window/total, rounded to an even integer
+    sets a baseline ratio of 0.2 window/total, rounded to an even integer
     returns the smoothed array
+    Can also handle fixed-width smoothing
     Inputs:
         array- input array for smoothing, can be multidiml of shape
             (datlength,n) for n the number of different components

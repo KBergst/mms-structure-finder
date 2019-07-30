@@ -60,7 +60,7 @@ nbins_small=10 #number of bins for log-scale histograms and other small hists
 nbins=15 #number of bins for the size histograms
 
 DEBUG=0 #chooses whether to stop at iteration 15 or not
-REPLOT=1 #chooses whether to regenerate the plots or not
+REPLOT=0 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -220,7 +220,6 @@ for M in MMS:
     tmp_ve_spline=interp.CubicSpline(TT_time_j,ve_tmp) #interpolate electron veloc data
     ve[M]=tmp_ve_spline(TT_time_b[M]) #interpolate electron veloc to b-field timestamps    
 
-
 #find potential structure candidates from MMS 1 (data smoothed a small amount)
 bz_M1=ma.smoothing(b_field[MMS[0]][:,2],fixed=True,fixedwidth=6)
 crossing_indices_M1=ms.find_crossings(bz_M1,time_reg_b[MMS[0]],data_gap_time)
@@ -259,44 +258,45 @@ for i in range(len(crossing_indices_M1)):
     #sync all B-field data to MMS1 cadence and use a hamming window smooth
         #for the b-field data
     b_field_cut_sync={}
-    rad_cut_sync={}
-    vi_cut_sync={}
-    ve_cut_sync={}
-    ne_cut_sync={}
-    ni_cut_sync={}
     b_field_struct_sync={}
+    b_struct_bary=np.zeros((len(time_struct_b),3)) #b at barycenter
+    rad_cut_sync={}
     rad_struct_sync={}
+    vi_cut_sync={}
     vi_struct_sync={}
-    vi_struct_bary=np.zeros((len(time_struct_b),3)) #vi at barycenter
+    vi_struct_bary=np.zeros((len(time_struct_b),3)) #vi at barycenter    
+    ve_cut_sync={}
     ve_struct_sync={}
     ve_struct_bary=np.zeros((len(time_struct_b),3)) #ve at barycenter
-    b_struct_bary=np.zeros((len(time_struct_b),3)) #b at barycenter
-    ne_struct_sync={}
+    ni_cut_sync={}
     ni_struct_sync={}
+    ni_struct_bary=np.zeros(len(time_struct_b))    
+    ne_cut_sync={}
+    ne_struct_sync={}
     ne_struct_bary=np.zeros(len(time_struct_b))
-    ni_struct_bary=np.zeros(len(time_struct_b))
+
     
     for M in MMS:
         tmp=msc.bartlett_interp(b_field[M],time_reg_b[M],
                                                    time_cut_b)
         b_field_cut_sync[M]=ma.smoothing(tmp)
         b_field_struct_sync[M]=b_field_cut_sync[M][cut_struct_idxs[i][0]: \
-                                              cut_struct_idxs[i][1]]
+                                              cut_struct_idxs[i][1],:]
         b_struct_bary=b_struct_bary+b_field_struct_sync[M]/len(MMS)
         rad_cut_sync[M]=msc.bartlett_interp(rad[M],time_reg_b[M],
                                                time_cut_b)
         rad_struct_sync[M]=rad_cut_sync[M][cut_struct_idxs[i][0]: \
-                                              cut_struct_idxs[i][1]]
+                                              cut_struct_idxs[i][1],:]
 
         vi_cut_sync[M]=msc.bartlett_interp(vi[M],time_reg_b[M],
                                                time_cut_b)
         vi_struct_sync[M]=vi_cut_sync[M][cut_struct_idxs[i][0]: \
-                                              cut_struct_idxs[i][1]]
+                                              cut_struct_idxs[i][1],:]
         vi_struct_bary=vi_struct_bary+vi_struct_sync[M]/len(MMS)
         ve_cut_sync[M]=msc.bartlett_interp(ve[M],time_reg_b[M],
                                                time_cut_b)
         ve_struct_sync[M]=ve_cut_sync[M][cut_struct_idxs[i][0]: \
-                                              cut_struct_idxs[i][1]]
+                                              cut_struct_idxs[i][1],:]
         ve_struct_bary=ve_struct_bary+ve_struct_sync[M]/len(MMS)
         ni_cut_sync[M]=msc.bartlett_interp(ni[M],time_reg_b[M],
                                                time_cut_b)
@@ -320,7 +320,7 @@ for i in range(len(crossing_indices_M1)):
                                                   time_struct_b,data_gap_time)
     if(bad_struct): #not able to do multispacecraft techniques
         continue
-    
+
     #do MDD analysis
     all_eigenvals,all_eigenvecs,avg_eigenvecs=msc.MDD(b_field_struct_sync,
                                                       rad_struct_sync)
@@ -380,6 +380,8 @@ for i in range(len(crossing_indices_M1)):
     avg_vtot=np.average(vtot)
     
     #calculate other properties of the structure (kind, size, etc.)
+    #calculate the curvature of the magnetic field
+    
     #calculate approximate electron and ion plasma frequencies and skin depths
     we_struct_bary=pp.plasma_frequency(ne_struct_bary,const.m_e)
     wp_struct_bary=pp.plasma_frequency(ni_struct_bary,const.m_p) #assuming all ions are protons (valid?)
@@ -579,6 +581,13 @@ mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
                                  'electron_normalized_speed',
                                  scatters_out_directory,structure_kinds)
 mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+                                 'ion_normalized_speed',
+                                 scatters_out_directory,structure_kinds)
+''' make scatter plot comparing ion-normalized and electron-normalized attributes'''
+mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
+                                 'ion_normalized_size',
+                                 scatters_out_directory,structure_kinds)
+mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_speed',
                                  'ion_normalized_speed',
                                  scatters_out_directory,structure_kinds)
     

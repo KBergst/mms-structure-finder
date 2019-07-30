@@ -207,7 +207,6 @@ def MDD(b_fields,spacecrafts_coords):
     '''
     b_grads=spatial_gradient(b_fields,spacecrafts_coords)
     
-    all_eigenvals=np.transpose(np.array([[],[],[]]))
     list_eigenvals=[]
     list_eigenvecs=[]
     for grad_b in b_grads:
@@ -279,11 +278,11 @@ def structure_diml(mdd_eigenvals):
     D_3D_avg=np.average(D_3D)
     
     #combine for the method:
-    if (D_avg[0]>0.7 or D_2D_avg < 0.4):
+    if (D_avg[0]>0.33 or D_2D_avg < 0.4):
         dims[0]=True
-    if (D_avg[1]>0.7 or (D_2D_avg > 0.4 and D_3D_avg < 0.4)):
+    if (D_avg[1]>0.33 or (D_2D_avg > 0.4 and D_3D_avg < 0.4)):
         dims[1]=True
-    if (D_avg[2]>0.7 or D_3D_avg > 0.4):
+    if (D_avg[2]>0.33 or D_3D_avg > 0.4):
         dims[2]=True
         
     if sum(dims)>1:
