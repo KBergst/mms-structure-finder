@@ -8,6 +8,7 @@ Home of functions to perform various multispacecraft techniques on MMS data
 
 import numpy as np
 import datetime as dt
+import mmsarrays as ma
 import mmstimes as mt
 import mmsstructs as ms
 
@@ -188,7 +189,49 @@ def time_deriv(array,times,deriv_window,dt_num):
     derivs=np.concatenate(list_derivs,axis=0)
     
     return derivs
-      
+
+def curvature(vecs,spacecrafts_coords,avg_vecs=None):
+    '''
+    Determines an estimate of the curvature of multi-spacecraft field data.
+    See Sun et al. 2019 for the inspiration for this work
+    Calculates, for unit vector b, the equivalent of (b dot grad)b
+    Can show this is equivalent to b^T (grad b)
+    Inputs:
+        vecs- a dictionary with four values, each consisting of an array
+            of vector quantites from a particular spacecraft of form (datlength,3)
+            data must already be time synchronized
+        spacecrafts_coords- a dictionary with four values, each consisting of 
+            an array of spacecraft coordinates of form (datlength,3) 
+        avg_vecs- the average over all arrays of vector quantities. The function
+            will calculate this if it is not provided. Default is None.
+            of form (datlength,3)
+    Outputs:
+    ''' 
+    #find averages and normalize
+    scs=list(vecs.keys())
+    vecs_unit={}
+    vecs_bary=np.zeros_like(vecs[scs[0]])
+    if avg_vecs is None:
+        #calculate the average over all spacecraft
+        for sc in scs:
+            vecs_bary=vecs_bary+vecs[sc]/len(scs)
+            vecs_unit[sc]=ma.normalize(vecs[sc],axis_num=1) #normalize each vector
+    else:
+        vecs_bary=avg_vecs
+        for sc in scs:
+            vecs_unit[sc]=ma.normalize(vecs[sc],axis_num=1) #normalize each vector
+    vecs_bary_unit=ma.normalize(vecs_bary,axis_num=1) #normalize average vector
+    #calculate spatial gradient of the unit vectors
+    vecs_grads=spatial_gradient(vecs_unit,spacecrafts_coords)
+    
+    curvature_vecs=np.empty_like(vecs[scs[0]])
+    for n in range(len(vecs_grads)): #calculate the curvature
+        curvature=vecs_grads[n] @ vecs_bary_unit[n,:]
+        curvature_vecs[n,:]=curvature
+
+    return curvature_vecs   
+        
+         
 def MDD(b_fields,spacecrafts_coords):
     '''
     Does a Minimum Directional Derivative (MDD) analysis on magnetic field data

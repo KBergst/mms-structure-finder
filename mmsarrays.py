@@ -10,6 +10,30 @@ for the mms_feature_search script. Includes boxcar averaging, etc.
 
 import numpy as np
 
+def normalize(array,axis_num=0):
+    '''
+    Returnes the normalized array along the provided axis.
+    Inputs:
+        array- the array to unit normalize
+        axis_num- the axis to do the normalization over (e.g this dimension goes to length 1)
+            default value 0
+    Outputs:
+        unit_array- the unit normalized array
+    '''
+    
+    norms=np.linalg.norm(array,axis=axis_num)
+    unit_array=np.empty_like(array)
+    
+    if len(norms.shape) < 2: #need to recast to multidiml array
+        norms=norms.reshape(len(norms),1)
+        
+    try:
+        unit_array=array/norms
+    except:
+        print("error normalizing")
+      
+    return unit_array
+    
 def angle_between(array1,array2):
     '''
     Determines the angle between two vectors in the typical 3d way

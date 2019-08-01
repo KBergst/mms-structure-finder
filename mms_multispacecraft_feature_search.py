@@ -59,8 +59,8 @@ quality_min=0.5 #used in structure_classification, minimum accepted quality
 nbins_small=10 #number of bins for log-scale histograms and other small hists
 nbins=15 #number of bins for the size histograms
 
-DEBUG=0 #chooses whether to stop at iteration 15 or not
-REPLOT=0 #chooses whether to regenerate the plots or not
+DEBUG=1 #chooses whether to stop at iteration 15 or not
+REPLOT=1 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -146,11 +146,17 @@ eigenvec_legend=['x','y','z']
 veloc_labels=['Structure normal velocity in GSM in time','Time',
               'Normal velocity (km/s)']
 veloc_legend=['Vx','Vy','Vz','Vtot']
-vcompare_labels=['Velocity at barycenter','Time','Normal velocity (km/S']
+vcompare_labels=['Velocity at barycenter','Time','Normal velocity (km/s)']
 vcompare_legend=['Structure normal velocity','Ion normal velocity',
                  'Electron normal velocity']
 j_labels=['MMS GSM curlometer current density vs. time','Time', 
-          r'Jy GSM (microA/m^2)'  ]
+          r'Jy GSM (microA/$m^{2}$)'  ]
+n_labels=['MMS spatially averaged density vs. time','Time',
+          'density ($cm^{-3}$)']
+n_legend=['ion density','electron density']
+curvature_labels=['Magnetic field curvature vs. time','Time',
+                  'Curvature ($km^{-1}$)']
+curvature_legend=['x component','y component','z component','total']
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -371,7 +377,7 @@ for i in range(len(crossing_indices_M1)):
     #do STD analysis
     '''
     Todo: 
-        -do post-processing determination of whether the STD analysis was good
+        -determine whether the STD analysis was good
     '''
     velocs,optimal=msc.STD(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
                                rad_struct_sync,all_eigenvals,all_eigenvecs,
@@ -381,7 +387,9 @@ for i in range(len(crossing_indices_M1)):
     
     #calculate other properties of the structure (kind, size, etc.)
     #calculate the curvature of the magnetic field
-    
+    curvature_struct=msc.curvature(b_field_struct_sync,rad_struct_sync,
+                                   b_struct_bary)
+    total_curvature_struct=np.linalg.norm(curvature_struct,axis=1)
     #calculate approximate electron and ion plasma frequencies and skin depths
     we_struct_bary=pp.plasma_frequency(ne_struct_bary,const.m_e)
     wp_struct_bary=pp.plasma_frequency(ni_struct_bary,const.m_p) #assuming all ions are protons (valid?)
@@ -443,6 +451,7 @@ for i in range(len(crossing_indices_M1)):
         ax8=plt.subplot2grid(gridsize,(1,1))
         ax9=plt.subplot2grid(gridsize,(2,1))
         ax10=plt.subplot2grid(gridsize,(3,1))
+        ax11=plt.subplot2grid(gridsize,(4,1))
         #plot joined and smoothed B-fields
         for M in MMS:  
             bz=b_field_cut_sync[M][:,2]
@@ -501,17 +510,30 @@ for i in range(len(crossing_indices_M1)):
                                  legend=vcompare_legend[2])
         #plot densities
         mmsp.tseries_plotter(fig,ax10,time_struct_b,
-                                 ne_struct_bary,
-                                 labels=['','',''],
-                                 lims=[min(time_cut_b),max(time_cut_b)],
-                                 legend='electron')  
-        mmsp.tseries_plotter(fig,ax10,time_struct_b,
                                  ni_struct_bary,
-                                 labels=['','',''],
+                                 labels=n_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
-                                 legend='ion')  
+                                 legend=n_legend[0])  
+        mmsp.tseries_plotter(fig,ax10,time_struct_b,
+                                 ne_struct_bary,
+                                 labels=n_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=n_legend[1])  
+        #plot curvature components
+        for j in range(3):
+            mmsp.tseries_plotter(fig,ax11,time_struct_b,
+                                     curvature_struct[:,j],
+                                     labels=curvature_labels,
+                                     lims=[min(time_cut_b),max(time_cut_b)],
+                                     legend=curvature_legend[j]) 
+        #plot total curvature 
+        mmsp.tseries_plotter(fig,ax11,time_struct_b,
+                                 total_curvature_struct,
+                                 labels=curvature_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=curvature_legend[3])            
         #add horizontal and vertical lines to plot (crossing + extent)
-        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8,ax9,ax10],
+        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8,ax9,ax10,ax11],
                         time=crossing_time,edges=crossing_struct_times[i],
                         horiz=0.)
          #add categorization information to plot
