@@ -65,7 +65,7 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
 REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=0 #chooses whether to stop at iteration 15 or not
+DEBUG=1 #chooses whether tostop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -257,7 +257,7 @@ for M in MMS:
     #process each crossing
     for i in range(len(crossing_indices_bz)):
         label = label + 1
-        if (i==100 and DEBUG): #debug option
+        if (i==15 and DEBUG): #debug option
             #check how long the code took to run
             end=time.time()
             print("Code executed in "+str(dt.timedelta(seconds=end-start)))   
@@ -381,12 +381,16 @@ for M in MMS:
         
         '''
         
-
-        minchi, impParam = mf.chisquared1(b_mva_struct, label)
-        normArray = mf.RectToCylindrical(b_mva_struct)
+        minchi, impParam, half, minChiSquaredlH, minChiSquareduH, minChiSquaredWhole = mf.modelMove(b_mva_struct, label, counter)
+        chiSquare2 = "Event Rejected"
+        #minchi, impParam = mf.chisquared1(b_mva_struct, label)
         isRejected = False
-        
+        if(half == 0):
+            b_mva_struct = np.delete(b_mva_struct, np.s_[int((len(b_mva_struct) / 2))::1], 0)
+        elif(half == 2):
+            b_mva_struct = np.delete(b_mva_struct, np.s_[:int((len(b_mva_struct) / 2)):1], 0)
         cylinArray = mf.RectToCylindrical(b_mva_struct)
+        normArray = mf.normalize(b_mva_struct)
         #B_axi, B_azi = mf.modelFluxRope(0.5)
         #print("B_axial: " + str(B_axi) + "B_azi: " + str(B_azi))
         if (minchi == False or minchi > 0.15):
@@ -395,11 +399,11 @@ for M in MMS:
         else:
             print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam))
         if(isRejected == False):
-            mf.curveFit(cylinArray, impParam)
-            #chiSquare2 = mf.chiSquared2(b_mva_struct, impParam, label)
-            #print ("Second chi-square test value" + str(chiSquare2))
+            aAxi, bAxi, aAzi, bAzi = mf.curveFit(cylinArray, impParam, label, counter)
+            chiSquare2 = mf.chiSquared2(b_mva_struct, impParam, label, aAxi, bAxi, aAzi, bAzi, counter)
+            #chiSquare2 = mf.chiSquared2FF(b_mva_struct, impParam, label)
+            print ("Second chi-square test value" + str(chiSquare2))
             
-        '''       
         magnitude = [0 for x in range(len(normArray))]
         for p in range(len(normArray)):
             magnitude[p] = (normArray[p][0] ** 2) + (normArray[p][1] ** 2) + (normArray[p][2] ** 2)
@@ -414,14 +418,14 @@ for M in MMS:
         plt.plot(x, v(z), label = 'Magnitude - Model')
         plt.legend() 
         
-        plt.savefig('FittingPics/Magnitude' + str(label) + '.png')
+        plt.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter)+ ' Magnitude' + str(label) + '.png')
         
-        plt.show()'''
+        plt.show() 
 
 
         
-        
-        
+        mf.writeToCSV(counter, label, minChiSquaredWhole, minChiSquaredlH, minChiSquareduH, minchi, impParam, chiSquare2) 
+
         
         
 '''

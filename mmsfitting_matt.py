@@ -15,8 +15,11 @@ import matplotlib.pyplot as plt2
 import matplotlib.lines as mlines
 import numpy as np
 import sympy as sy
-
-
+import mpmath as mp
+from sympy import besselj, jn
+from sympy.solvers import solve
+import csv
+from os import path
 #TODO: Write a function that normalizes the data 
 
 #Turns (x,y,z) coordinates into (r, z, theta) coordinates 
@@ -34,9 +37,9 @@ def RectToCylindrical(RectArray):
             theta = 0
         else:
             theta = -math.asin(y/r) + math.pi
-        CylindArray[i][0] = r #Store radial distance in first position --> Azimuthal
+        CylindArray[i][0] = abs(r) #Store radial distance in first position --> Azimuthal
         CylindArray[i][2] = theta #Stores angular direction in third position --> Azimuthal 
-        CylindArray[i][1] = RectArray[i][1] #Z position left untouched, stored in 2rd position --> Axial Coordinate
+        CylindArray[i][1] = abs(RectArray[i][1]) #Z position left untouched, stored in 2rd position --> Axial Coordinate
      
     return CylindArray 
 
@@ -98,7 +101,7 @@ def normalize2(oldArray, impact_param): #maximmum magnitude is based off of the 
     return normalized 
     
 
-def chisquared1(RectArray, label): #first chi-squared test as defined by Smith et al., 2017
+def chisquared1(RectArray, label, counter, half): #first chi-squared test as defined by Smith et al., 2017
     CylindArray = RectToCylindrical(RectArray) 
     #not sure if this is correct -- made a lot of assumptions
     impactParameter = 0
@@ -116,8 +119,12 @@ def chisquared1(RectArray, label): #first chi-squared test as defined by Smith e
         imp = y / float(100)
         #print("The chi-squared before turning to 0" + str(chiSquaredValue))
         chiSquaredValue = 0 
+        z1, z2 = derivativeBMax2(imp)
+        r1 = math.sqrt((imp ** 2) + (z1 ** 2))
+        ran = r1 - imp
         for x in range(len(RectArray)):
             radialDist = getRadialDistance(imp, len(RectArray), x, isEven)
+            radialDist = (ran * radialDist) + imp
             B_axial, B_azimuthal = modelForceFreeFluxRope(radialDist)
            # print("B-Axial: " + str(B_axial) + "B-azimuthal: " + str(B_azimuthal))
             chiSquaredValue += ((abs(CylindArray[x][0]) - B_azimuthal) ** 2) + ((abs(CylindArray[0][1]) - B_axial) ** 2)
@@ -134,8 +141,8 @@ def chisquared1(RectArray, label): #first chi-squared test as defined by Smith e
             minChiSquared = chiSquaredValue
             impactParameter = imp 
             
-    #plotComponent(chiSquarePlotData, chiSquareInput, label)
-    #plotComponents(impactParameter, CylindArray, label)
+    plotComponent(chiSquarePlotData, chiSquareInput, label, counter, half)
+    plotComponents(impactParameter, CylindArray, label, counter, half)
     print("The impact parameter is" + str(impactParameter))
     
     
@@ -151,7 +158,9 @@ def getTheta(radialDist, s):
     if (s == 0): #im not sure if this is correct
         theta = 0
     else:
-        theta = math.acos(s / radialDist)
+       # print(s)
+       # print(radialDist)
+        theta = math.acos(s / (radialDist + 0.001))
     return theta
         
     
@@ -163,7 +172,30 @@ def getComponents(theta, b_azi):
     return b_model_min, b_model_max
 
     
-def chiSquared2(RectArray, imp_Param, label): #No conversion is needed for this one
+def chiSquared2(RectArray, imp_Param, label, aAxi, bAxi, aAzi, bAzi, counter): #No conversion is needed for this one
+    RectArray = normalize(RectArray)
+    numOfData = len(RectArray)
+    chiSquare = 0    
+    isEven = False
+    radialDist = 0
+    if len(RectArray) % 2 == 0:
+        isEven = True    
+    z1, z2 = derivativeBMax2(imp_Param)
+    r1 = math.sqrt((imp_Param ** 2) + (z1 ** 2))
+    ran = r1 - imp_Param
+    for x in range(numOfData):
+        radialDist = getRadialDistance(imp_Param, numOfData, x, isEven)
+        radialDist = (ran * radialDist) + imp_Param
+        theta = getTheta(radialDist, imp_Param)
+        b_axi, b_aziF = modelFluxRope(radialDist, aAxi, bAxi)
+        b_axiF, b_azi = modelFluxRope(radialDist, aAzi, bAzi)
+        b_model_min, b_model_max = getComponents(theta, b_azi) 
+        chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axi) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
+    chiSquare = chiSquare / ((3 * numOfData) - 4)
+    plotComponents3(imp_Param, RectArray, label, aAxi, bAxi, aAzi, bAzi, counter)
+    return chiSquare
+
+def chiSquared2FF(RectArray, imp_Param, label): #No conversion is needed for this one
     RectArray = normalize(RectArray)
     numOfData = len(RectArray)
     chiSquare = 0    
@@ -174,11 +206,11 @@ def chiSquared2(RectArray, imp_Param, label): #No conversion is needed for this 
     for x in range(numOfData):
         radialDist = getRadialDistance(imp_Param, numOfData, x, isEven)
         theta = getTheta(radialDist, imp_Param)
-        b_axi, b_azi = modelFluxRope(radialDist)
+        b_axi, b_azi = modelForceFreeFluxRope(radialDist)
         b_model_min, b_model_max = getComponents(theta, b_azi) 
         chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axi) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
     chiSquare = chiSquare / ((3 * numOfData) - 4)
-    #plotComponents3(imp_Param, RectArray, label)
+    plotComponents3FF(imp_Param, RectArray, label)
     return chiSquare
 
 def getRadialDistance(s, numOfDataPoints, index, isEven):
@@ -203,13 +235,19 @@ def getRadialDistance(s, numOfDataPoints, index, isEven):
 
 
 
-def plotComponent(components1, xAxis, label):
+def plotComponent(components1, xAxis, label, counter, half):
     plt2.figure(1)
     plt2.plot(xAxis, components1, 'ro')
     plt2.title("Chi-Square Value over Impact Parameters 0 to 0.95")
-    plt2.savefig('FittingPics/ImpactParameter' + str(label) + '.png')
-
-def plotComponents(impactParam, array, label):
+    if (half == 1):
+        plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterWhole' + str(label) + '.png')
+    if (half == 0):
+        plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterLowerHalf' + str(label) + '.png')
+    if (half == 2):
+        plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterUpperHalf' + str(label) + '.png')
+    print("Saved!" + str(label))
+    plt2.show()
+def plotComponents(impactParam, array, label, counter, half):
     
     isEven = False
     if len(array) % 2 == 0:
@@ -219,35 +257,49 @@ def plotComponents(impactParam, array, label):
     CylindArray = array
     plt2.figure(7)
     #plt2.title("Model vs Data Azimuthal and Axial")
-    ran = 1 - getMinRadial(array, impactParam)
+    #ran = 1 - getMinRadial(array, impactParam)
+    yValues = [0 for x in range(len(array))]
+    azimuth = [0 for x in range(len(array))]
+    axial = [0 for x in range(len(array))]
+    z1, z2 = derivativeBMax2(impactParam)
+    r1 = math.sqrt((impactParam ** 2) + (z1 ** 2))
+    ran = r1 - impactParam
     for x in range(len(CylindArray)):
-            y = ((x * ran) / len(CylindArray)) + getMinRadial(array, impactParam)
-            
-            #radialDist = getRadialDistance(impactParam, len(array), x, isEven)
-            #B_axial, B_azimuthal = modelFluxRope(radialDist)
-            #plt2.plot(x, B_axial, marker='o', markersize=3, color="red")
-            #plt2.plot(x, B_azimuthal, marker='o', markersize=3, color="blue")
-            plt2.plot(y, abs(CylindArray[x][0]), marker='o', markersize=3, color="blue")
-            plt2.plot(y, abs(CylindArray[x][1]), marker='o', markersize=3, color="red")
-            
-    
-    
-   # b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
-   #                       markersize=10, label='Model B-Axial')
-   # b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
-   #                       markersize=10, label='Model B-Azimuthal')
+            #yValues[x] = ((x * ran) / len(CylindArray)) + getMinRadial(array, impactParam)
+            yValues[x] = x
+            azimuth[x] = CylindArray[x][0]
+            axial[x] = CylindArray[x][1]
+            radialDist = getRadialDistance(impactParam, len(array), x, isEven)
+            radialDist = (ran * radialDist) + impactParam
+            B_axial, B_azimuthal = modelForceFreeFluxRope(radialDist)
+            plt2.plot(x, B_axial, marker='o', markersize=3, color="red")
+            plt2.plot(x, B_azimuthal, marker='o', markersize=3, color="blue")
+    plt2.plot(yValues, azimuth, marker='.', markersize=3, color="blue")
+    plt2.plot(yValues, axial, marker='.', markersize=3, color="red")
+
+    b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
+                          markersize=10, label='Model B-Axial')
+    b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
+                          markersize=10, label='Model B-Azimuthal')
     b4 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
                           markersize=10, label='Data B-Axial')
     b3 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
                           markersize=10, label='Data B-Azimuthal')    
     
     
-    plt2.legend(handles=[b4, b3])
-    #plt2.savefig('FittingPics/AzimuthalandAxial' + str(label) + '.png')
-    #plt2.show()
+    plt2.legend(handles=[b1, b2, b4, b3])
+    
+    if(half == 1):
+        plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialWhole' + str(label) + '.png')
+    if(half == 0):
+          plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialLowerHalf' + str(label) + '.png')
+    if(half == 2):
+          plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialUpperHalf' + str(label) + '.png')
+    print("Saved!" + str(label))
+    plt2.show()
             
     
-def plotComponents3(impactParam, array, label):
+def plotComponents3(impactParam, array, label, aAxi, bAxi, aAzi, bAzi, counter):
     numOfData = len(array)   
     isEven = False
     radialDist = 0
@@ -256,10 +308,59 @@ def plotComponents3(impactParam, array, label):
     
     if len(array) % 2 == 0:
         isEven = True    
+    z1, z2 = derivativeBMax2(impactParam)
+    r1 = math.sqrt((impactParam ** 2) + (z1 ** 2))
+    ran = r1 - impactParam
     for x in range(numOfData):
         radialDist = getRadialDistance(impactParam, numOfData, x, isEven)
+        radialDist = (ran * radialDist) + impactParam
         theta = getTheta(radialDist, impactParam)
-        b_axi, b_azi = modelFluxRope(radialDist)
+        b_axi, b_aziF = modelFluxRope(radialDist, aAxi, bAxi)
+        b_axiF, b_azi = modelFluxRope(radialDist, aAzi, bAzi)
+        b_model_min, b_model_max = getComponents(theta, b_azi) 
+        plt2.plot(x, b_model_max, marker='o', markersize=3, color="red")
+        plt2.plot(x, b_axi, marker='o', markersize=3, color="green")
+        plt2.plot(x, b_model_min, marker='o', markersize=3, color="blue")
+        plt2.plot(x, abs(array[x][0]), marker='o', markersize=3, color="magenta")
+        plt2.plot(x, abs(array[x][1]), marker='o', markersize=3, color="cyan")
+        plt2.plot(x, abs(array[x][2]), marker='o', markersize=3, color="yellow")
+        
+        
+    b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
+                          markersize=10, label='Model Max')
+    b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
+                          markersize=10, label='Model Min')
+    b3 = mlines.Line2D([], [], color='green', marker='o', linestyle='None',
+                          markersize=10, label='Model Axial')
+    b4 = mlines.Line2D([], [], color='magenta', marker='o', linestyle='None',
+                          markersize=10, label='Data Max')    
+    b5 = mlines.Line2D([], [], color='yellow', marker='o', linestyle='None',
+                          markersize=10, label='Data Min')
+    b6 = mlines.Line2D([], [], color='cyan', marker='o', linestyle='None',
+                          markersize=10, label='Data Axial') 
+    
+    plt2.legend(handles=[b1, b2, b3, b4, b5, b6])    
+    plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' Components' + str(label) + '.png')
+    print("Saved!" + str(label))
+    plt2.show()
+
+def plotComponents3FF(impactParam, array, label):
+    numOfData = len(array)   
+    isEven = False
+    radialDist = 0
+    plt2.figure(4)
+    plt2.title("Chi-Squared 2")
+    
+    if len(array) % 2 == 0:
+        isEven = True    
+    z1, z2 = derivativeBMax2(impactParam)
+    r1 = math.sqrt((impactParam ** 2) + (z1 ** 2))
+    ran = r1 - impactParam
+    for x in range(numOfData):
+        radialDist = getRadialDistance(impactParam, numOfData, x, isEven)
+        radialDist = (ran * radialDist) + impactParam
+        theta = getTheta(radialDist, impactParam)
+        b_axi, b_azi = modelForceFreeFluxRope(radialDist)
         b_model_min, b_model_max = getComponents(theta, b_azi) 
         plt2.plot(x, b_model_max, marker='o', markersize=3, color="red")
         plt2.plot(x, b_axi, marker='o', markersize=3, color="green")
@@ -288,7 +389,21 @@ def plotComponents3(impactParam, array, label):
     plt2.savefig('FittingPics/Components' + str(label) + '.png')
     plt2.show()
 
-
+def plotForceFreeFluxRope():
+    plt2.figure(8)
+    s = 0.7
+    numOfDataPoints = 200 
+    isEven = True 
+    for i in range(0, 201, 1):
+        r = getRadialDistance(s, numOfDataPoints, i, isEven)
+        B_axial, B_azimuthal = modelForceFreeFluxRope(r)
+        Bmax = B_azimuthal * math.sin(getTheta(r,s))
+        plt2.plot(i, B_axial, marker='o', markersize=3, color="red")
+        plt2.plot(i, B_azimuthal, marker='o', markersize=3, color="blue")
+        plt2.plot(i, Bmax, marker='o', markersize=3, color="green")
+    plt2.show()
+    
+    
 def plotBvsR(DataArray, impactParam):        
     normArray = DataArray
     isEven = False
@@ -305,9 +420,6 @@ def plotBvsR(DataArray, impactParam):
         plt2.plot(r, magnitude[p], marker='o', markersize=3, color="green")
     plt2.show()
     
-
-
-        
     
 def derivativeBMax(s, a, b):
     B0 = 1
@@ -322,7 +434,7 @@ def derivativeBMax(s, a, b):
     zero2 = ot.brentq(sy.lambdify(x, bMaxPrime), 0, 2)
     return zero1, zero2 
     
-    
+
 def radiusRange(zeroesArray, s):
     lowerBound = math.sqrt((zeroesArray[0] ** 2) + (s ** 2))
     upperBound = math.sqrt((zeroesArray[0] ** 2) + (s ** 2))
@@ -341,38 +453,50 @@ def bAzimuthal(r, a, b):
     alphaR = np.sin((math.pi/2) * (1 - np.exp(-(np.power(r,2))/ np.power(a,2))))
     return bR * np.sin(alphaR)
 
-def curveFit(normArray, impactParam):
-    plt2.figure(7)
+def curveFit(normArray, impactParam, label, counter):
     #bAxial2 = np.vectorize(bAxial)
     #bAzimuthal2 = np.vectorize(bAzimuthal)
     isEven = False
     if len(normArray) % 2 == 0:
         isEven = True  
     xValues = [0 for i in range(len(normArray))]
+    xV = [i for i in range(len(normArray))]
     for i in range(len(normArray)):
-        xValues[i] = getRadialDistance(impactParam, len(normArray), i, isEven)
+        xValues[i] = getRadialDistance(impactParam, len(normArray), i + 1, isEven)
         
     bAxialY = [0 for i in range(len(normArray))]
     for i in range(len(normArray)):
         bAxialY[i] = normArray[i][1]
+        plt2.plot(xV[i], bAxialY[i], marker='o', markersize=3, color="blue")
+    print(len(xValues))
+    print(len(bAxialY))
     poptBAxial, pcovBAxial = ot.curve_fit(bAxial, xValues, bAxialY)
-    
+    print(poptBAxial)
+    print(pcovBAxial)
     bAzimuthalY = [0 for i in range(len(normArray))]
     for i in range(len(normArray)):
         bAzimuthalY[i] = normArray[i][0]
+        plt2.plot(xV[i], bAzimuthalY[i], marker='o', markersize=3, color="red")
     poptBAzimuthal, pcovBAzimuthal = ot.curve_fit(bAzimuthal, xValues, bAzimuthalY)
     
-    plotComponents(impactParam, normArray, 1)
     
-    plt2.plot(xValues, bAxial(xValues, *poptBAxial), 'r-', label='fit: a=%5.3f, b=%5.3f' % tuple(poptBAxial))
-    plt2.plot(xValues, bAzimuthal(xValues, *poptBAzimuthal), 'b-', label='fit: a=%5.3f, b=%5.3f' % tuple(poptBAzimuthal))
+    
+    #plotComponents(impactParam, normArray, 1)
+    plt2.plot(xV, bAxial(xValues, *poptBAxial), 'r-', label='fit: a=%5.3f, b=%5.3f' % tuple(poptBAxial))
+    plt2.plot(xV, bAzimuthal(xValues, *poptBAzimuthal), 'b-', label='fit: a=%5.3f, b=%5.3f' % tuple(poptBAzimuthal))
     
     plt2.xlabel('x')
     plt2.ylabel('y')
     plt2.legend()
+    plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' Fit Parameters' + str(label) + '.png')
     plt2.show()
     
-
+    aAxi = poptBAxial[0]
+    bAxi = poptBAxial[1]
+    aAzi = poptBAzimuthal[0]
+    bAzi = poptBAzimuthal[1]
+    
+    return aAxi, bAxi, aAzi, bAzi
 def getMinRadial(normArray, impParam):
     isEven = False
     if len(normArray) % 2 == 0:
@@ -380,4 +504,58 @@ def getMinRadial(normArray, impParam):
     half = len(normArray) / 2
     return getRadialDistance(impParam, len(normArray), half, isEven)
     
+
+
+def derivativeBMax2(s):
+    B0 = 1
+    H = 1 
+    alpha = 2.4048
+    x = sy.symbols('x', real=True)
+    B_azimuthal = B0 * H * besselj(1, alpha * sy.sqrt((x ** 2) + (s ** 2)))
+    Bmax = B_azimuthal * sy.sin(sy.acos(s / sy.sqrt((x ** 2) + (s ** 2))))
+    #p0 = sy.plot(Bmax, show=False)
+    #p0.show()
+    BMaxPrime = sy.diff(Bmax, x)
+    #print(str(BMaxPrime))
+    #p1 = sy.plot(BMaxPrime, show=False)
+    #p1.show()
     
+    
+    #sol = solve(BMaxPrime, x)
+    #print(sol)
+    zero1 = ot.fsolve(sy.lambdify(x, BMaxPrime), 1)
+    zero2 = ot.fsolve(sy.lambdify(x, BMaxPrime), -0.1) 
+    return zero1, zero2 
+
+def modelMove(dataArray, label, counter):
+    half = 1
+    minChiSquared, impactParameter = chisquared1(dataArray, label, counter, half)
+    minChi = minChiSquared
+    impParam = impactParameter
+    lowerHalf = np.delete(dataArray, np.s_[int((len(dataArray) / 2))::1], 0)
+    upperHalf = np.delete(dataArray, np.s_[:int((len(dataArray) / 2)):1], 0)
+    minChiSquaredlH, impactParameterlH = chisquared1(lowerHalf, label, counter, 0)
+    if (minChiSquaredlH < minChi):
+        minChi = minChiSquaredlH
+        impParam = impactParameterlH
+        half = 0
+    minChiSquareduH, impactParameteruH = chisquared1(upperHalf, label, counter, 2)
+    if (minChiSquareduH < minChi):
+        minChi = minChiSquareduH
+        impParam = impactParameteruH
+        half = 2
+    return minChi, impParam, half, minChiSquaredlH, minChiSquareduH, minChiSquared
+
+
+def writeToCSV(counter, label, csW, csLH, csUH, mCS, iP, sCSV):
+    
+    fileName = 'Satellite ' + str(counter)
+    
+    with open(fileName, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if (path.exists(fileName + '.csv') == False):
+            writer.writerow(['Event number', 'Chi-Square Whole', 'Chi-Square Lower Half', 'Chi-Square Upper Half', 'Minimum Chi-Squared', 'Impact Parameter', 'Second Chi-Squared Value'])
+        writer.writerow([label, csW, csLH, csUH, mCS, iP, sCSV])
+    print("Wrote once!")
+    
+   
