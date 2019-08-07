@@ -18,6 +18,16 @@ import textwrap #for fixing too-long labels that overlap
 from scipy.optimize import curve_fit #for fitting histograms
 
 ##### FITTING FNS #############################################################
+def fitfn_linear(x,a,b):
+    '''
+    fitting function
+    linear function
+    fits for parameters a and b
+    '''
+    linear_fn=a*x+b
+    
+    return linear_fn
+
 def fitfn_exp(x,a,b):
     '''
     fitting function (specifically for size histograms)
@@ -117,7 +127,7 @@ def textify(string):
 
 ##### PLOTTING FNS ############################################################
 def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
-                  yerrors=None,square=False):
+                  yerrors=None,square=False,ylims=None):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -136,6 +146,9 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
         y errors- the y error bars for each point. Default None, can either be
             a constant value or have the same dimension as data1 and data2
         square- true if want square plot, false if not. Default False
+        ylims- list containing the plotting limits for the y axis
+            lims[0] is the minimum y-value 
+            lims[1] is the maximum y-value
     Outputs:
         out- the ax.plot instance used
     '''
@@ -151,6 +164,10 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
         ax.set_xlim(xlims[0],xlims[1])
         ax.set_ylim(ylims[0],ylims[1])
     ax.legend(edgecolor='black')
+    
+    if (ylims is not None):
+        ax.set_ylim(ylims[0],ylims[1])
+        
     return out
 
 def window_squarer(data1,data2):
@@ -768,7 +785,16 @@ def msc_structure_scatter_maker(data,attr1,attr2,out,structure_key):
                 total_data1=np.append(total_data1,data1)
                 total_data2=np.append(total_data2,data2)
                 
-                scatter_plotter(ax,total_data1,total_data2,labels_tot)
+        scatter_plotter(ax,total_data1,total_data2,labels_tot)
+        #plot the artificial limits on sizes/velocities for size and velocity scatter
+        if (('size' in [attr1,attr2]) and ('normal_speed' in [attr1,attr2])):
+            x=np.linspace(0,max(total_data1),num=10)
+            y1=fitfn_linear(x,128,0)
+            y2=fitfn_linear(x,1/3,0)
+            y_lims=[0,max(total_data2)*1.05]
+            basic_plotter(ax,x,y1,ylims=y_lims)
+            basic_plotter(ax,x,y2)
+
             
         fig.savefig(os.path.join(out,"{}_{}_scatter_{}.png".format(attr1,attr2,
                                  urlify(structure_type))), bbox_inches='tight')

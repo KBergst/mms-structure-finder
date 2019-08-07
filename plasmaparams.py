@@ -41,6 +41,23 @@ def inertial_length(freq):
     d=c_km_s/freq
     return d
 
+def beta(pressure,bfield):
+    '''
+    Use to calculate the average plasma beta given the pressure (in nPa) and the
+    magnetic field (in nT). Pressure and bfield MUST be time synced!
+    Inputs:
+        pressure- the total pressure in nPa
+        bfield- the magnetic field as a numpy array in nT,
+            dimension (arrlength,3)
+    Outputs:
+        
+    '''
+    numerator=pressure*2*const.mu_0*1e9 #1e9 to make mu_0 the right units
+    denominator=np.linalg.norm(bfield,axis=1)**2
+    plasma_beta=numerator/denominator
+    
+    return plasma_beta
+
 def electron_veloc(j,time_j,vi,ni,time_ni,ne,time_ne):
     '''
     Used to calculate the electron velocity from curlometer 
@@ -75,3 +92,4 @@ def electron_veloc(j,time_j,vi,ni,time_ni,ne,time_ne):
 
     ve=np.concatenate(ve_list,axis=0)
     return ve
+

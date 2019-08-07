@@ -59,15 +59,16 @@ quality_min=0.5 #used in structure_classification, minimum accepted quality
 nbins_small=10 #number of bins for log-scale histograms and other small hists
 nbins=15 #number of bins for the size histograms
 
-DEBUG=1 #chooses whether to stop at iteration 15 or not
+DEBUG=0 #chooses whether to stop at iteration 15 or not
 REPLOT=1 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
     
     #initializer
-    def __init__(self,kind,size,size_e,size_p,gf,vel,vel_e,vel_p):
+    def __init__(self,kind,dt,size,size_e,size_p,gf,vel,vel_e,vel_p):
         self.kind=kind
+        self.duration=dt
         self.size=size
         self.electron_normalized_size=size_e
         self.ion_normalized_size=size_p
@@ -84,7 +85,8 @@ class Structure:
                   'guide_field':'guide fields',
                   'normal_speed':'normal speeds',
                   'electron_normalized_speed':'electron-normalized speeds',
-                  'ion_normalized_speed':'ion-normalized speeds'
+                  'ion_normalized_speed':'ion-normalized speeds',
+                  'duration':'durations'
                 }
     
     #for getting units
@@ -95,7 +97,8 @@ class Structure:
                 'guide_field':'nT',
                 'normal_speed':'km/s',
                 'electron_normalized_speed':'unitless',
-                'ion_normalized_speed':'unitless'                
+                'ion_normalized_speed':'unitless',   
+                'duration':'s'
             }
 
 ###### MAIN ###################################################################
@@ -125,9 +128,13 @@ TT_time_b={} #for magnetic field timeseries in MMS times (TT2000)
 time_reg_b={} #for magnetic field timeseries in datetime objects
 ni={} #for ion density
 vi={} #will be interpolated to b-field cadence (fit w/ spline)
+presi={} #ion pressure
 ne={} #for electron density
 ne_nozero={} #to remove underflows from the electron density data
 ve={} #for curlometer electron velocity
+prese={} #electron pressure
+errflags_i={} #dis errorflags
+errflags_e={} #des errorflags
 
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
@@ -157,6 +164,7 @@ n_legend=['ion density','electron density']
 curvature_labels=['Magnetic field curvature vs. time','Time',
                   'Curvature ($km^{-1}$)']
 curvature_legend=['x component','y component','z component','total']
+pressure_labels=['Total pressure vs. time','Time','Pressure (nPa)']
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -176,8 +184,12 @@ for M in MMS:
     TT_time_b[M]=np.array([])
     ni[M]=np.array([])
     vi[M]=np.transpose(np.array([[],[],[]])) #for all vi data 
+    presi[M]=np.array([])
+    errflags_i[M]=np.array([]).astype(int)
     ne[M]=np.array([])
     ve[M]=np.transpose(np.array([[],[],[]])) #for all ve data 
+    prese[M]=np.array([])
+    errflags_e[M]=np.array([]).astype(int)    
     
     for b_stub,dis_stub,des_stub in zip(b_list,dis_list,des_list):
         #create full paths
@@ -197,10 +209,22 @@ for M in MMS:
         rad[M]=np.concatenate((rad[M],rad_btime_tmp),axis=0)
         TT_time_b[M]=np.concatenate((TT_time_b[M],TT_time_tmp))
         #read and process the ni,vi data
-        TT_time_ni_tmp,ni_tmp,temp=md.get_cdf_var(dis_file,
+        TT_time_ni_tmp,ni_tmp,temp,prestensor,dis_errs=md.get_cdf_var(dis_file,
                                        ['Epoch',
                                         'mms'+M+'_dis_numberdensity_brst',
-                                        'mms'+M+'_dis_bulkv_gse_brst'])
+                                        'mms'+M+'_dis_bulkv_gse_brst',
+                                        'mms'+M+'_dis_prestensor_gse_brst',
+                                        'mms'+M+'_dis_errorflags_brst'])
+        dis_errs_interp=interp.interp1d(TT_time_ni_tmp,dis_errs,kind='nearest',
+                                        fill_value="extrapolate")
+        dis_errs_btime=dis_errs_interp(TT_time_tmp).astype(int)
+        errflags_i[M]=np.concatenate((errflags_i[M],dis_errs_btime))
+        prestmp=np.zeros_like(TT_time_ni_tmp)
+        for j in range(3):
+            prestmp=prestmp+prestensor[:,j,j]/3
+        tmp_presi_spline=interp.CubicSpline(TT_time_ni_tmp,prestmp) #interpolate electron density data
+        presi_btime_tmp=tmp_presi_spline(TT_time_tmp) #interpolate ion pressure to b-field timestamps
+        presi[M]=np.concatenate((presi[M],presi_btime_tmp))
         tmp_ni_spline=interp.CubicSpline(TT_time_ni_tmp,ni_tmp) #interpolate ion density data
         ni_btime_tmp=tmp_ni_spline(TT_time_tmp) #interpolate ion density to b-field timestamps
         ni[M]=np.concatenate((ni[M],ni_btime_tmp))
@@ -209,12 +233,26 @@ for M in MMS:
         vi_btime_tmp=tmp_vi_spline(TT_time_tmp) #interpolate ion veloc to b-field timestamps
         vi[M]=np.concatenate((vi[M],vi_btime_tmp),axis=0) 
         #read and process the ne data
-        TT_time_ne_tmp,ne_tmp=md.get_cdf_var(des_file,['Epoch',
-                                            'mms'+M+'_des_numberdensity_brst'])
+        TT_time_ne_tmp,ne_tmp,prestensor,des_errs=md.get_cdf_var(des_file,
+                                                                 ['Epoch',
+                                            'mms'+M+'_des_numberdensity_brst',
+                                            'mms'+M+'_des_prestensor_gse_brst',
+                                            'mms'+M+'_des_errorflags_brst'])
+        des_errs_interp=interp.interp1d(TT_time_ne_tmp,des_errs,kind='nearest',
+                                        fill_value='extrapolate')
+        des_errs_btime=des_errs_interp(TT_time_tmp).astype(int)
+        errflags_e[M]=np.concatenate((errflags_e[M],des_errs_btime))
+        prestmp=np.zeros_like(TT_time_ne_tmp)
+        for j in range(3):
+            prestmp=prestmp+prestensor[:,j,j]/3
+        tmp_prese_interp=interp.interp1d(TT_time_ne_tmp,prestmp,
+                                         fill_value="extrapolate") #interpolate electron  pressure data
+        prese_btime_tmp=tmp_prese_interp(TT_time_tmp) #interpolate electron pressure to b-field timestamps
+        prese[M]=np.concatenate((prese[M],prese_btime_tmp))
         tmp_ne_spline=interp.CubicSpline(TT_time_ne_tmp,ne_tmp) #interpolate electron density data
-        ne_btime_tmp=tmp_ne_spline(TT_time_tmp) #interpolate ion density to b-field timestamps
+        ne_btime_tmp=tmp_ne_spline(TT_time_tmp) #interpolate electron density to b-field timestamps
         ne[M]=np.concatenate((ne[M],ne_btime_tmp))
-    
+        
     #populate other necessary data dictionaries
     time_reg_b[M]=np.array(mt.TTtime2datetime(TT_time_b[M])) #time as datetime obj np arr
     ne_nozero[M]=np.where(ne[M]>ne_fudge_factor,ne[M],ne_fudge_factor) #avoid zero densities
@@ -280,6 +318,16 @@ for i in range(len(crossing_indices_M1)):
     ne_cut_sync={}
     ne_struct_sync={}
     ne_struct_bary=np.zeros(len(time_struct_b))
+    presi_cut_sync={}
+    presi_struct_sync={}
+    presi_struct_bary=np.zeros(len(time_struct_b))  
+    prese_cut_sync={}
+    prese_struct_sync={}
+    prese_struct_bary=np.zeros(len(time_struct_b))
+    errflags_i_cut_sync={} #dis errorflags
+    errflags_i_struct_sync={} #dis errorflags  
+    errflags_e_cut_sync={} #des errorflags    
+    errflags_e_struct_sync={} #des errorflags    
 
     
     for M in MMS:
@@ -316,7 +364,28 @@ for i in range(len(crossing_indices_M1)):
                                               cut_struct_idxs[i][1]]
         ne_struct_bary=ne_struct_bary+ \
                     ne_struct_sync[M].reshape(len(ne_struct_sync[M]))/len(MMS)
-        
+        presi_cut_sync[M]=msc.bartlett_interp(presi[M],time_reg_b[M],
+                                               time_cut_b)
+        presi_struct_sync[M]=presi_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]]
+        presi_struct_bary=presi_struct_bary+ \
+                    presi_struct_sync[M].reshape(len(presi_struct_sync[M]))/len(MMS)
+        prese_cut_sync[M]=msc.bartlett_interp(prese[M],time_reg_b[M],
+                                               time_cut_b)
+        prese_struct_sync[M]=prese_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]]
+        prese_struct_bary=prese_struct_bary+ \
+                    prese_struct_sync[M].reshape(len(prese_struct_sync[M]))/len(MMS)
+        errflags_i_interp=interp.interp1d(mt.datetime2TTtime(time_reg_b[M]),errflags_i[M],
+                                               kind="nearest")
+        errflags_i_cut_sync[M]=errflags_i_interp(mt.datetime2TTtime(time_cut_b)).astype(int)
+        errflags_i_struct_sync[M]=errflags_i_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]] 
+        errflags_e_interp=interp.interp1d(mt.datetime2TTtime(time_reg_b[M]),
+                                          errflags_e[M],kind="nearest")
+        errflags_e_cut_sync[M]=errflags_e_interp(mt.datetime2TTtime(time_cut_b)).astype(int)
+        errflags_e_struct_sync[M]=errflags_e_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1]]  
     #sync curlometer data also
     j_cut_sync=msc.bartlett_interp(j_curl,time_reg_jcurl,time_cut_b)
     j_struct_sync=j_cut_sync[cut_struct_idxs[i][0]:cut_struct_idxs[i][1],:]
@@ -386,6 +455,40 @@ for i in range(len(crossing_indices_M1)):
     avg_vtot=np.average(vtot)
     
     #calculate other properties of the structure (kind, size, etc.)
+    #determine error-flags for des and dis data
+    err_i_label="Ion moments error flags:\n"   
+    for M in MMS:
+        bool_errs=np.zeros(32,dtype=bool)
+        err_i_label+="MMS"+M+"- "
+        for n in range(len(errflags_i_struct_sync[M])):
+            err_b_str="{0:b}".format(errflags_i_struct_sync[M][n])
+            for j in range(len(err_b_str)):
+                if (err_b_str[len(err_b_str)-1-j] is '1'):
+                    bool_errs[j]=True
+        for j in range(len(bool_errs)):
+            if bool_errs[j]:
+                err_i_label+=str(j)+' '
+    err_i_label+='\n'
+    err_e_label="Electron moments error flags:\n"   
+    for M in MMS:
+        bool_errs=np.zeros(32,dtype=bool)
+        err_e_label+="MMS"+M+"- "
+        for n in range(len(errflags_e_struct_sync[M])):
+            err_b_str="{0:b}".format(errflags_e_struct_sync[M][n])
+            for j in range(len(err_b_str)):
+                if (err_b_str[len(err_b_str)-1-j] is '1'):
+                    bool_errs[j]=True
+        for j in range(len(bool_errs)):
+            if bool_errs[j]:
+                err_e_label+=str(j)+' '
+    err_e_label+='\n'
+                
+            
+    #calculate plasma beta
+    pres_struct_bary=prese_struct_bary+presi_struct_bary
+    betai_struct_bary=pp.beta(presi_struct_bary,b_struct_bary)
+    betai_avg=np.average(betai_struct_bary)
+    str_beta_avg=f"{betai_avg:.2f}"  #string formatting
     #calculate the curvature of the magnetic field
     curvature_struct=msc.curvature(b_field_struct_sync,rad_struct_sync,
                                    b_struct_bary)
@@ -406,6 +509,7 @@ for i in range(len(crossing_indices_M1)):
     crossing_type,type_flag=ms.structure_classification(crossing_signs_M1[i],
                                                         v_sign,v_qual,jy_sign,
                                                         jy_qual,quality_min)
+    crossing_duration=(time_struct_b[-1]-time_struct_b[0]).total_seconds()
     crossing_size=ms.structure_sizer([time_struct_b[0],
                                           time_struct_b[-1]],vtot)
     str_crossing_size=f"{crossing_size:.1f}"  #string formatting
@@ -417,7 +521,7 @@ for i in range(len(crossing_indices_M1)):
     
     #add the structure to the total counts
     MMS_structure_counts[''][type_dict[type_flag]] += 1
-    MMS_structures.append(Structure(type_dict[type_flag],
+    MMS_structures.append(Structure(type_dict[type_flag],crossing_duration,
                                                 crossing_size,crossing_size_de,
                                                 crossing_size_dp,
                                                 avg_guide_field,avg_vtot,
@@ -434,24 +538,26 @@ for i in range(len(crossing_indices_M1)):
         crossing_de_label="Average electron inertial length: "+ \
                             str_de_avg+" km"+"\n"
         crossing_dp_label="Average proton inertial length: "+ \
-                            str_dp_avg+" km"+"\n"          
+                            str_dp_avg+" km"+"\n" 
+        crossing_beta_label="Average ion beta: "+str_beta_avg+"\n"
         #plot it 
         mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
         plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
-        gridsize=(6,2)
-        fig=plt.figure(figsize=(16,12)) #width,height
+        gridsize=(7,2)
+        fig=plt.figure(figsize=(16,16)) #width,height
         ax1=plt.subplot2grid(gridsize,(0,0))
         ax2=plt.subplot2grid(gridsize,(1,0))   
         ax3=plt.subplot2grid(gridsize,(2,0)) 
         ax4=plt.subplot2grid(gridsize,(3,0))
         ax5=plt.subplot2grid(gridsize,(4,0))
-        ax6=plt.subplot2grid(gridsize,(5,0))
-        ax6.axis('off')
-        ax7=plt.subplot2grid(gridsize,(0,1))
-        ax8=plt.subplot2grid(gridsize,(1,1))
-        ax9=plt.subplot2grid(gridsize,(2,1))
-        ax10=plt.subplot2grid(gridsize,(3,1))
-        ax11=plt.subplot2grid(gridsize,(4,1))
+        ax67=plt.subplot2grid(gridsize,(5,0),rowspan=2)
+        ax67.axis('off')
+        ax8=plt.subplot2grid(gridsize,(0,1))
+        ax9=plt.subplot2grid(gridsize,(1,1))
+        ax10=plt.subplot2grid(gridsize,(2,1))
+        ax11=plt.subplot2grid(gridsize,(3,1))
+        ax12=plt.subplot2grid(gridsize,(4,1))
+        ax13=plt.subplot2grid(gridsize,(5,1))
         #plot joined and smoothed B-fields
         for M in MMS:  
             bz=b_field_cut_sync[M][:,2]
@@ -478,73 +584,83 @@ for i in range(len(crossing_indices_M1)):
                                      labels=eigenvec_label[j],
                                      lims=[min(time_cut_b),max(time_cut_b)],
                                      legend=eigenvec_legend[k])
-        mmsp.tseries_plotter(fig,ax7,time_cut_b,j_cut_sync[:,1],j_labels,
+        mmsp.tseries_plotter(fig,ax8,time_cut_b,j_cut_sync[:,1],j_labels,
                              lims=[min(time_cut_b),max(time_cut_b)]) #plot jy
         #plot the structure velocities
         for j in range(3):
-            mmsp.tseries_plotter(fig,ax8,time_struct_b,
+            mmsp.tseries_plotter(fig,ax9,time_struct_b,
                                  velocs[:,j],
                                  labels=veloc_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=veloc_legend[j])
-        mmsp.tseries_plotter(fig,ax8,time_struct_b,
+        mmsp.tseries_plotter(fig,ax9,time_struct_b,
                                  vtot,
                                  labels=veloc_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=veloc_legend[3]) 
         #plot comparison of total normal velocities to ion/electron normal velocities
-        mmsp.tseries_plotter(fig,ax9,time_struct_b,
+        mmsp.tseries_plotter(fig,ax10,time_struct_b,
                                  vtot,
                                  labels=vcompare_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=vcompare_legend[0])
-        mmsp.tseries_plotter(fig,ax9,time_struct_b,
+        mmsp.tseries_plotter(fig,ax10,time_struct_b,
                                  vi_norm,
                                  labels=vcompare_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=vcompare_legend[1])   
-        mmsp.tseries_plotter(fig,ax9,time_struct_b,
+        mmsp.tseries_plotter(fig,ax10,time_struct_b,
                                  ve_norm,
                                  labels=vcompare_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=vcompare_legend[2])
         #plot densities
-        mmsp.tseries_plotter(fig,ax10,time_struct_b,
+        mmsp.tseries_plotter(fig,ax11,time_struct_b,
                                  ni_struct_bary,
                                  labels=n_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=n_legend[0])  
-        mmsp.tseries_plotter(fig,ax10,time_struct_b,
+        mmsp.tseries_plotter(fig,ax11,time_struct_b,
                                  ne_struct_bary,
                                  labels=n_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=n_legend[1])  
         #plot curvature components
         for j in range(3):
-            mmsp.tseries_plotter(fig,ax11,time_struct_b,
+            mmsp.tseries_plotter(fig,ax12,time_struct_b,
                                      curvature_struct[:,j],
                                      labels=curvature_labels,
                                      lims=[min(time_cut_b),max(time_cut_b)],
                                      legend=curvature_legend[j]) 
         #plot total curvature 
-        mmsp.tseries_plotter(fig,ax11,time_struct_b,
+        mmsp.tseries_plotter(fig,ax12,time_struct_b,
                                  total_curvature_struct,
                                  labels=curvature_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
-                                 legend=curvature_legend[3])            
+                                 legend=curvature_legend[3])  
+        #plot electron and ion presssure
+        mmsp.tseries_plotter(fig,ax13,time_struct_b,
+                                 prese_struct_bary,labels=pressure_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend="electron pressure") 
+        mmsp.tseries_plotter(fig,ax13,time_struct_b,
+                                 presi_struct_bary,labels=pressure_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend="ion presssure")        
         #add horizontal and vertical lines to plot (crossing + extent)
-        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax7,ax8,ax9,ax10,ax11],
+        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax8,ax9,ax10,ax11,ax12,ax13],
                         time=crossing_time,edges=crossing_struct_times[i],
                         horiz=0.)
          #add categorization information to plot
-        ax6.text(0.5,0.5,type_str+'\n'+jy_sign_label+v_sign_label+ \
+        ax67.text(0.5,0.5,type_str+'\n'+jy_sign_label+v_sign_label+ \
                  crossing_sign_label+crossing_size_label+crossing_dp_label+ \
-                 crossing_de_label,wrap=True,
-                 transform=ax6.transAxes,fontsize=16,ha='center',va='center')
+                 crossing_de_label+crossing_beta_label+err_i_label+err_e_label,
+                 wrap=True,transform=ax67.transAxes,fontsize=16,ha='center',
+                 va='center')       
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
                                 plot_out_name+str(i)+".png"), 
                                 bbox_inches='tight')
-        plt.close(fig="all")                                   
+        plt.close(fig="all")                                  
 
 """ STATISTICAL PART """
 ''' make bar chart of the different types of structures '''
@@ -561,6 +677,11 @@ mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
                           structure_kinds)   
 mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,
                           nbins_small,structure_kinds, log=True)
+''' make histograms of the time durations of all structures'''
+mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
+                              nbins,structure_kinds)   
+mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
+                              nbins_small,structure_kinds, log=True)
 ''' make histograms of the normalized x-lengths of all structures'''
 mmsp.msc_structure_hist_maker(MMS_structures,"electron_normalized_size",
                               hists_out_directory,nbins,structure_kinds)  
@@ -594,10 +715,13 @@ mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
                               log=True)
 ''' make scatter plot of guide field strength vs structure size '''
 mmsp.msc_structure_scatter_maker(MMS_structures,'size','guide_field',
-                             scatters_out_directory,structure_kinds)  
+                                 scatters_out_directory,structure_kinds)  
 ''' make scatter plot of normal speed vs structure size '''
 mmsp.msc_structure_scatter_maker(MMS_structures,'size','normal_speed',
-                             scatters_out_directory,structure_kinds)
+                                 scatters_out_directory,structure_kinds)
+''' make scatter plot of normal speed vs structure duration '''
+mmsp.msc_structure_scatter_maker(MMS_structures,'duration','normal_speed',
+                                 scatters_out_directory,structure_kinds)
 ''' make scatter plot of normalized speeds vs normalized structure size '''
 mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
                                  'electron_normalized_speed',
@@ -623,4 +747,10 @@ print("Code executed in "+str(dt.timedelta(seconds=end-start)))
     #may have to do for now
 #TODO: optimization- list appends are faster than numpy concatenates, so 
     #read in data as list of numpy arrays and then concatenate it all along the right axis
-    #at the end for faster code
+    #at the end for faster code.
+#TODO: pressure stuff! import the FPI pressure tensors, convert them to scalar pressures
+    #(if applicable) and figure out if they are balanced and what that means for the likelihood
+    #of the structure to be spatial and not some time-based transient
+    #not sure if this analysis is at all valid (esp in turbulent plasma), but
+    #why not check it out anyways?
+#TODO:check if reshaping of CDF variables is necessary or if they are just good
