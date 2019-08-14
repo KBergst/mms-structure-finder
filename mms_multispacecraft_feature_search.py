@@ -38,6 +38,7 @@ data_dir="MMS"
 bfield_names_file=r"Bfield_file_location_key.txt"
 dis_names_file=r"dis_file_location_key.txt"
 des_names_file=r"des_file_location_key.txt"
+edp_names_file=r"edp_file_location_key.txt"
 curlometer_dir="Curlometer_data"
 j_names_file=os.path.join(curlometer_dir,"curlometer_files.txt")
 plot_out_directory=r"ms_feature_search"
@@ -51,11 +52,10 @@ scatters_out_directory=os.path.join(statistics_out_directory,"scatters")
 data_gap_time=dt.timedelta(milliseconds=10) #amount of time to classify 
                                                   #something as a data gap
 extrema_width=10 #number of points to compare on each side to declare an extrema
-smoothed_extrema_width=10 #number of points to compare on each side to declare an extrema for the smoothed data
 min_crossing_height=0.1 #expected nT error in region of interest as per documentation
 window_padding=20 #number of indices to add to each side of window
 ne_fudge_factor=0.001 #small amount of density to add to avoid NaN velocities
-quality_min=0.5 #used in structure_classification, minimum accepted quality
+quality_min=0.2 #used in structure_classification, minimum accepted quality
 nbins_small=10 #number of bins for log-scale histograms and other small hists
 nbins=15 #number of bins for the size histograms
 
@@ -66,7 +66,7 @@ REPLOT=1 #chooses whether to regenerate the plots or not
 class Structure:
     
     #initializer
-    def __init__(self,kind,dt,size,size_e,size_p,gf,vel,vel_e,vel_p):
+    def __init__(self,kind,dt,size,size_e,size_p,gf,vel,vel_e,vel_p,dim):
         self.kind=kind
         self.duration=dt
         self.size=size
@@ -76,6 +76,7 @@ class Structure:
         self.normal_speed=vel
         self.electron_normalized_speed=vel_e
         self.ion_normalized_speed=vel_p
+        self.dimensionality=dim
         
     #for pluralization in outputs
     plurals={'size':'sizes',
@@ -86,7 +87,8 @@ class Structure:
                   'normal_speed':'normal speeds',
                   'electron_normalized_speed':'electron-normalized speeds',
                   'ion_normalized_speed':'ion-normalized speeds',
-                  'duration':'durations'
+                  'duration':'durations',
+                  'dimensionality':'dimensionalities'
                 }
     
     #for getting units
@@ -98,7 +100,8 @@ class Structure:
                 'normal_speed':'km/s',
                 'electron_normalized_speed':'unitless',
                 'ion_normalized_speed':'unitless',   
-                'duration':'s'
+                'duration':'s',
+                'dimensionality':''
             }
 
 ###### MAIN ###################################################################
@@ -122,6 +125,12 @@ type_dict={
         4:'matches none'
         }
 
+type_strs=["1D structure","2D structure",
+           "2D structure with some smaller-dimensional qualities",
+           "3D structure",
+           "3D structure with some smaller-dimensional qualities"
+           ]
+
 b_field={} #dictionary that will contain all the different magnetic field data
 rad={} #dictionary holding resampled spacecraft position data (same time cadence as that satellite's b-field)
 TT_time_b={} #for magnetic field timeseries in MMS times (TT2000)
@@ -135,6 +144,7 @@ ve={} #for curlometer electron velocity
 prese={} #electron pressure
 errflags_i={} #dis errorflags
 errflags_e={} #des errorflags
+e_field={}
 
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
@@ -165,6 +175,8 @@ curvature_labels=['Magnetic field curvature vs. time','Time',
                   'Curvature ($km^{-1}$)']
 curvature_legend=['x component','y component','z component','total']
 pressure_labels=['Total pressure vs. time','Time','Pressure (nPa)']
+e_labels=['Electric field of structure over all satellites','Time','E (mV/m)']
+e_legend=['Ex','Ey','Ez']
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -178,6 +190,7 @@ for M in MMS:
     b_list=md.filenames_get(os.path.join(path,data_dir,M,bfield_names_file))
     dis_list=md.filenames_get(os.path.join(path,data_dir,M,dis_names_file))
     des_list=md.filenames_get(os.path.join(path,data_dir,M,des_names_file))
+    edp_list=md.filenames_get(os.path.join(path,data_dir,M,edp_names_file))
     #initialize data dictionary values
     b_field[M]=np.transpose(np.array([[],[],[]])) #for all B field data
     rad[M]=np.transpose(np.array([[],[],[]])) 
@@ -189,13 +202,16 @@ for M in MMS:
     ne[M]=np.array([])
     ve[M]=np.transpose(np.array([[],[],[]])) #for all ve data 
     prese[M]=np.array([])
-    errflags_e[M]=np.array([]).astype(int)    
+    errflags_e[M]=np.array([]).astype(int)
+    e_field[M]=np.transpose(np.array([[],[],[]])) #for all E field data    
     
-    for b_stub,dis_stub,des_stub in zip(b_list,dis_list,des_list):
+    for b_stub,dis_stub,des_stub,edp_stub in zip(b_list,dis_list,des_list,
+                                                 edp_list):
         #create full paths
         b_file=os.path.join(path,data_dir,M,b_stub)     
         dis_file=os.path.join(path,data_dir,M,dis_stub)
         des_file=os.path.join(path,data_dir,M,des_stub)
+        edp_file=os.path.join(path,data_dir,M,edp_stub)
         #read and process b-field data
         TT_time_tmp,TT_radtime_tmp,temp,temp2=md.get_cdf_var(b_file,['Epoch',
                                                                      'Epoch_state',
@@ -252,12 +268,20 @@ for M in MMS:
         tmp_ne_spline=interp.CubicSpline(TT_time_ne_tmp,ne_tmp) #interpolate electron density data
         ne_btime_tmp=tmp_ne_spline(TT_time_tmp) #interpolate electron density to b-field timestamps
         ne[M]=np.concatenate((ne[M],ne_btime_tmp))
-        
+        #read and process the E-field data
+        TT_time_edp_tmp,e_field_tmp=md.get_cdf_var(edp_file,
+                                               ['mms'+M+'_edp_epoch_brst_l2',
+                                               'mms'+M+'_edp_dce_gse_brst_l2'])
+        tmp_efield_interp=interp.interp1d(TT_time_edp_tmp,e_field_tmp,axis=0,
+                                          fill_value="extrapolate") #interpolate electron  pressure data
+        efield_btime_tmp=tmp_efield_interp(TT_time_tmp) #interpolate e-field to b-field timestamps
+        e_field[M]=np.concatenate((e_field[M],efield_btime_tmp))
     #populate other necessary data dictionaries
     time_reg_b[M]=np.array(mt.TTtime2datetime(TT_time_b[M])) #time as datetime obj np arr
     ne_nozero[M]=np.where(ne[M]>ne_fudge_factor,ne[M],ne_fudge_factor) #avoid zero densities
-    #transform velocities to GSM coordinates from GSE
+    #transform velocities and electric fields to GSM coordinates from GSE
     vi[M]=mt.coord_transform(vi[M],'GSE','GSM',time_reg_b[M])
+    e_field[M]=mt.coord_transform(e_field[M],'GSE','GSM',time_reg_b[M])    
     #roughly calculate electron velocity from curlometer
     ve_tmp=pp.electron_veloc(j_curl,TT_time_j,vi[M],ni[M],TT_time_b[M],
                             ne_nozero[M],TT_time_b[M])
@@ -327,7 +351,10 @@ for i in range(len(crossing_indices_M1)):
     errflags_i_cut_sync={} #dis errorflags
     errflags_i_struct_sync={} #dis errorflags  
     errflags_e_cut_sync={} #des errorflags    
-    errflags_e_struct_sync={} #des errorflags    
+    errflags_e_struct_sync={} #des errorflags 
+    e_field_cut_sync={}
+    e_field_struct_sync={}
+    e_struct_bary=np.zeros((len(time_struct_b),3)) #b at barycenter
 
     
     for M in MMS:
@@ -385,7 +412,12 @@ for i in range(len(crossing_indices_M1)):
                                           errflags_e[M],kind="nearest")
         errflags_e_cut_sync[M]=errflags_e_interp(mt.datetime2TTtime(time_cut_b)).astype(int)
         errflags_e_struct_sync[M]=errflags_e_cut_sync[M][cut_struct_idxs[i][0]: \
-                                              cut_struct_idxs[i][1]]  
+                                              cut_struct_idxs[i][1]] 
+        e_field_cut_sync[M]=msc.bartlett_interp(e_field[M],time_reg_b[M],
+                                               time_cut_b)
+        e_field_struct_sync[M]=e_field_cut_sync[M][cut_struct_idxs[i][0]: \
+                                              cut_struct_idxs[i][1],:]
+        e_struct_bary=e_struct_bary+e_field_struct_sync[M]/len(MMS)
     #sync curlometer data also
     j_cut_sync=msc.bartlett_interp(j_curl,time_reg_jcurl,time_cut_b)
     j_struct_sync=j_cut_sync[cut_struct_idxs[i][0]:cut_struct_idxs[i][1],:]
@@ -397,7 +429,7 @@ for i in range(len(crossing_indices_M1)):
         continue
 
     #do MDD analysis
-    all_eigenvals,all_eigenvecs,avg_eigenvecs=msc.MDD(b_field_struct_sync,
+    all_eigenvals,all_eigenvecs,avg_eigenvecs,std_eigenvecs=msc.MDD(b_field_struct_sync,
                                                       rad_struct_sync)
     dims_struct,multidiml,D_struct,junk=msc.structure_diml(all_eigenvals)
 
@@ -421,10 +453,14 @@ for i in range(len(crossing_indices_M1)):
     elif(dims_struct[1]):
         type_str="2D structure"
         for n in range(len(time_struct_b)):
-            vi_mdd=np.transpose(all_eigenvecs[n,:,:]) @ vi_struct_bary[n,:]
+            vi_mdd=np.transpose(all_eigenvecs[n,:,:]) @ vi_struct_bary[n,:] #USING TIME-DEPENDENT MDD DIRECTIONS
             vi_norm[n]=np.sqrt(vi_mdd[0]*vi_mdd[0]+vi_mdd[1]*vi_mdd[1])
             ve_mdd=np.transpose(all_eigenvecs[n,:,:]) @ ve_struct_bary[n,:]
             ve_norm[n]=np.sqrt(ve_mdd[0]*ve_mdd[0]+ve_mdd[1]*ve_mdd[1])
+#            vi_mdd=np.transpose(avg_eigenvecs) @ vi_struct_bary[n,:] #USING AVERAGE MDD DIRECTIONS
+#            vi_norm[n]=np.sqrt(vi_mdd[0]*vi_mdd[0]+vi_mdd[1]*vi_mdd[1])
+#            ve_mdd=np.transpose(avg_eigenvecs) @ ve_struct_bary[n,:]
+#            ve_norm[n]=np.sqrt(ve_mdd[0]*ve_mdd[0]+ve_mdd[1]*ve_mdd[1])            
             b_mdd[n,:]=np.transpose(all_eigenvecs[n,:,:]) @ b_struct_bary[n,:]
             b_mdd_avg[n,:]=np.transpose(avg_eigenvecs) @ b_struct_bary[n,:]
             avg_guide_field=avg_guide_field+b_mdd[n,2]/len(time_struct_b)
@@ -435,24 +471,29 @@ for i in range(len(crossing_indices_M1)):
             vi_norm[n]=abs(vi_mdd[0])
             ve_mdd=np.transpose(all_eigenvecs[n,:,:]) @ ve_struct_bary[n,:]
             ve_norm[n]=abs(ve_mdd[0])
+#            vi_mdd=np.transpose(avg_eigenvecs) @ vi_struct_bary[n,:]
+#            vi_norm[n]=abs(vi_mdd[0])
+#            ve_mdd=np.transpose(avg_eigenvecs) @ ve_struct_bary[n,:]
+#            ve_norm[n]=abs(ve_mdd[0])
             b_mdd[n,:]=np.transpose(all_eigenvecs[n,:,:]) @ b_struct_bary[n,:]
             b_mdd_avg[n,:]=np.transpose(avg_eigenvecs) @ b_struct_bary[n,:]
             avg_guide_field=avg_guide_field+b_mdd[n,2]/len(time_struct_b)
     if(multidiml):
         type_str=type_str+" with some smaller-dimensional qualities"
-
+    str_avg_guide_field=f"{avg_guide_field:.2f}"
 
 
     #do STD analysis
-    '''
-    Todo: 
-        -determine whether the STD analysis was good
-    '''
     velocs,optimal=msc.STD(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
                                rad_struct_sync,all_eigenvals,all_eigenvecs,
                                dims_struct,min_crossing_height)
+    #do STD analysis with average MDD results
+#    avg_eigenvals=np.average(all_eigenvals,axis=0)
+#    velocs,optimal=msc.STD_avged(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
+#                               rad_struct_sync,avg_eigenvals,avg_eigenvecs,
+#                               dims_struct,min_crossing_height)
     vtot=np.linalg.norm(velocs,axis=1)
-    avg_vtot=np.average(vtot)
+    avg_vtot=np.average(vtot)    
     
     #calculate other properties of the structure (kind, size, etc.)
     #determine error-flags for des and dis data
@@ -525,7 +566,8 @@ for i in range(len(crossing_indices_M1)):
                                                 crossing_size,crossing_size_de,
                                                 crossing_size_dp,
                                                 avg_guide_field,avg_vtot,
-                                                avg_vtot_e,avg_vtot_p))
+                                                avg_vtot_e,avg_vtot_p,
+                                                type_str))
     
     if(REPLOT):
         #structure information for plot
@@ -540,6 +582,7 @@ for i in range(len(crossing_indices_M1)):
         crossing_dp_label="Average proton inertial length: "+ \
                             str_dp_avg+" km"+"\n" 
         crossing_beta_label="Average ion beta: "+str_beta_avg+"\n"
+        guide_field_label="Average guide field: "+str_avg_guide_field+" nT\n"
         #plot it 
         mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
         plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
@@ -558,6 +601,7 @@ for i in range(len(crossing_indices_M1)):
         ax11=plt.subplot2grid(gridsize,(3,1))
         ax12=plt.subplot2grid(gridsize,(4,1))
         ax13=plt.subplot2grid(gridsize,(5,1))
+        ax14=plt.subplot2grid(gridsize,(6,1))
         #plot joined and smoothed B-fields
         for M in MMS:  
             bz=b_field_cut_sync[M][:,2]
@@ -646,17 +690,24 @@ for i in range(len(crossing_indices_M1)):
         mmsp.tseries_plotter(fig,ax13,time_struct_b,
                                  presi_struct_bary,labels=pressure_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
-                                 legend="ion presssure")        
+                                 legend="ion presssure")
+        #plot barycenter electric field
+        for j in range(3):
+            mmsp.tseries_plotter(fig,ax14,time_struct_b,
+                                     e_struct_bary[:,j],
+                                     labels=e_labels,
+                                     lims=[min(time_cut_b),max(time_cut_b)],
+                                     legend=e_legend[j])             
         #add horizontal and vertical lines to plot (crossing + extent)
-        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax8,ax9,ax10,ax11,ax12,ax13],
+        mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax8,ax9,ax10,ax11,ax12,ax13,ax14],
                         time=crossing_time,edges=crossing_struct_times[i],
                         horiz=0.)
          #add categorization information to plot
         ax67.text(0.5,0.5,type_str+'\n'+jy_sign_label+v_sign_label+ \
                  crossing_sign_label+crossing_size_label+crossing_dp_label+ \
-                 crossing_de_label+crossing_beta_label+err_i_label+err_e_label,
-                 wrap=True,transform=ax67.transAxes,fontsize=16,ha='center',
-                 va='center')       
+                 crossing_de_label+crossing_beta_label+guide_field_label+ \
+                 err_i_label+err_e_label,wrap=True,transform=ax67.transAxes,
+                 fontsize=16,ha='center',va='center')       
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
                                 plot_out_name+str(i)+".png"), 
                                 bbox_inches='tight')

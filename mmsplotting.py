@@ -573,7 +573,7 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                 bbox_inches='tight')
     plt.close(fig='all')
     
-def structure_scatter_maker(data,attr1,attr2,out,structure_key):
+def structure_scatter_maker(data,attr1,attr2,out,structure_key,type_strs=None):
     '''
     A specialized function for plotting scatter plots of various structure
     attributes against each other

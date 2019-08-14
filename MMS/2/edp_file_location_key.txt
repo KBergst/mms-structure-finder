@@ -1,0 +1,7 @@
+mms2_edp_brst_l2_dce_20170726071653_v3.0.0.cdf
+mms2_edp_brst_l2_dce_20170726072113_v3.0.0.cdf
+mms2_edp_brst_l2_dce_20170726072613_v3.0.0.cdf
+mms2_edp_brst_l2_dce_20170726073113_v3.0.0.cdf
+mms2_edp_brst_l2_dce_20170726073213_v3.0.0.cdf
+mms2_edp_brst_l2_dce_20170726073613_v3.0.0.cdf
+mms2_edp_brst_l2_dce_20170726073713_v3.0.0.cdf

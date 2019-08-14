@@ -279,9 +279,11 @@ def MDD(b_fields,spacecrafts_coords):
             if np.dot(center_eigenvecs[:,i],all_eigenvecs[n,:,i]) < 0:
                 all_eigenvecs[n,:,i]=-1*all_eigenvecs[n,:,i]
     avg_eigenvecs=np.average(all_eigenvecs,axis=0) #take average of all eigenvecs
+    std_eigenvecs=np.std(all_eigenvecs,axis=0)
     unit_eigenvecs=avg_eigenvecs/np.linalg.norm(avg_eigenvecs,axis=0)
+    unit_std_eigenvecs=std_eigenvecs/np.linalg.norm(avg_eigenvecs,axis=0)
     
-    return all_eigenvals, all_eigenvecs,unit_eigenvecs    
+    return all_eigenvals, all_eigenvecs,unit_eigenvecs,unit_std_eigenvecs    
 
 def structure_diml(mdd_eigenvals):
     '''
@@ -414,5 +416,83 @@ def STD(b_fields,times,struct_idxs,spacecrafts_coords,mdd_eigenvals,
     
     return normal_veloc,optimal
     
-
+def STD_avged(b_fields,times,struct_idxs,spacecrafts_coords,avg_mdd_eigenvals,
+        avg_mdd_eigenvecs,dims,b_err,datarate=1/128):
+    '''
+    determines the velocity of 1D, 2D and 3D structures using the
+    Spatio-Temporal Difference (STD) method, as outlined in Shi et al. 2006.
+    Uses the average MDD directions rather than the ones that are changing in time.
+    Inputs:
+        b_fields- a dictionary with four values, each consisting of an array
+            of magnetic field vectors from a particular spacecraft of form 
+            (datlength,3). contains information from the entire window
+        times-timeseries for the b-field data
+        struct_idxs- two-element list of the beginning and end indices of 
+            the structure within the b_field data.
+        spacecrafts_coords- a dictionary with four values, each consisting of 
+            an array of spacecraft coordinates of form (datlength,3)
+        avg_mdd_eigenvals-the average three eigenvalues from the MDD analysis
+            ordered from largest to smallest
+        avg_mdd_eigenvecs-array of the average three eigenvectors from the MDD 
+            analysis
+        dims-list of three dimensions- true if the code thinks it is that
+            dimensionality and false if the code thinks it is not that 
+            dimensionality. [1D,2D,3D] 
+        b_err-expected error threshold for the magnetic field data.
+        datarate-expected time cadence of data. Default 1/128 s
+    Outputs:
+        normal_veloc- contains the normal velocity in GSM coordinates
+            a numpy array of shape (datlength,3)
+        optimal- returns False if the time difference wasn't able to fit the
+            criteria outlined in Shi et al. 2006
+    '''
+    optimal=True
+    db_dt_avg=np.zeros((struct_idxs[1]-struct_idxs[0],3)) #gives total number of datapoints
+    veloc=np.zeros((struct_idxs[1]-struct_idxs[0],3)) #returns zero if the velocity shouldn't be determined
+    normal_veloc=veloc #will contain the normal velocity in GSM coordinates
+    #calculate the average total time derivative in nT/s
+    b_field_struct={}
+    for sc in b_fields.keys():
+        dt_num=1
+        db_dt=time_deriv(b_fields[sc],times,struct_idxs,dt_num) #in nT/s
+        while (b_err/np.average(np.linalg.norm(db_dt,axis=1)) > \
+               dt_num*datarate): #need to redo time derivative with larger sectioning
+            dt_num=int(b_err/np.average(np.linalg.norm(db_dt,axis=1))/ \
+                       datarate)+1
+            if(dt_num >= struct_idxs[0]-1): #unable to do a large enough window to average
+                print("time differencing unable to meet optimal criteria")
+                optimal=False
+                break
+            db_dt=time_deriv(b_fields[sc],times,struct_idxs,dt_num) #in nT/s
+        db_dt_avg=db_dt_avg+db_dt/len(b_fields.values())
+        #section the b-field data to have only the part which has associated derivatives
+        b_field_struct[sc]=b_fields[sc][struct_idxs[0]:struct_idxs[1],:]
+        
+    #calculate the spatial gradient of the magnetic field
+    grad_B=spatial_gradient(b_field_struct,spacecrafts_coords)
+    
+    #do the STD analysis for each spacecraft
+    if dims[2]: #do all three dimensions
+        for n in range(struct_idxs[1]-struct_idxs[0]):
+            dbdt=db_dt_avg[n,:]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ avg_mdd_eigenvecs
+            veloc[n,0]=-1*lhs[0]/avg_mdd_eigenvals[0]
+            veloc[n,1]=-1*lhs[1]/avg_mdd_eigenvals[1]
+            veloc[n,2]=-1*lhs[2]/avg_mdd_eigenvals[2]
+            normal_veloc[n,:]= avg_mdd_eigenvecs @ veloc[n,:]
+    elif dims[1]: #only take two dimensions
+        for n in range(struct_idxs[1]-struct_idxs[0]):
+            dbdt=db_dt_avg[n,:]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ avg_mdd_eigenvecs
+            veloc[n,0]=-1*lhs[0]/avg_mdd_eigenvals[0]
+            veloc[n,1]=-1*lhs[1]/avg_mdd_eigenvals[1]
+            normal_veloc[n,:]= avg_mdd_eigenvecs @ veloc[n,:]
+    else: #only take one dimension
+        for n in range(struct_idxs[1]-struct_idxs[0]):
+            dbdt=db_dt_avg[n,:]
+            lhs= dbdt @ np.transpose(grad_B[n]) @ avg_mdd_eigenvecs
+            veloc[n,0]=-1*lhs[0]/avg_mdd_eigenvals[0]
+            normal_veloc[n,:]= avg_mdd_eigenvecs @ veloc[n,:]
+    
+    return normal_veloc,optimal
     
