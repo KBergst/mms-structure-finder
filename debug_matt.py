@@ -49,11 +49,16 @@ for i in range(0, 100, 10):
 '''
 
 def plotForceFreeFluxRope():
+    
+    
     plt.figure(8)
     DataArray = [[0 for x in range(2)] for y in range(201)]
     s = 0.5
     numOfDataPoints = 200 
     isEven = True 
+    plt.title("Model Force Free Flux Rope Magnetic Field")
+    plt.xlabel("Index Number")
+    plt.ylabel("Magnetic Field Strength")
     for i in range(0, 201, 1):
         r = mf.getRadialDistance(s, numOfDataPoints, i, isEven)
         B_axial = mf.bAxial(r, 0.35, 0.35)
@@ -66,7 +71,7 @@ def plotForceFreeFluxRope():
         DataArray[i][0] = B_azimuthal
    # print(DataArray)
     plt.show()
-    mf.curveFit(DataArray, s)
+    #mf.curveFit(DataArray, s)
     
-#plotForceFreeFluxRope()
+mf.plotForceFreeFluxRope()
 #mf.derivativeBMax2(0.5)

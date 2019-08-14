@@ -65,7 +65,7 @@ window_scale_factor=10  #amount to scale window by for scale comparisons
                                                   
 #To change behavior of code:                                           
 REPLOT=1 #chooses whether to regenerate the timeseries graphs or not
-DEBUG=1 #chooses whether tostop at iteration 15 or not
+DEBUG=0 #chooses whether tostop at iteration 15 or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -381,14 +381,16 @@ for M in MMS:
         
         '''
         
-        minchi, impParam, half, minChiSquaredlH, minChiSquareduH, minChiSquaredWhole = mf.modelMove(b_mva_struct, label, counter)
+        #minchi, impParam, half, minChiSquaredlH, minChiSquareduH, minChiSquaredWhole = mf.modelMove(b_mva_struct, label, counter)
         chiSquare2 = "Event Rejected"
-        #minchi, impParam = mf.chisquared1(b_mva_struct, label)
+        minchi, impParam = mf.chisquared1(b_mva_struct, label)
         isRejected = False
+        '''
         if(half == 0):
             b_mva_struct = np.delete(b_mva_struct, np.s_[int((len(b_mva_struct) / 2))::1], 0)
         elif(half == 2):
             b_mva_struct = np.delete(b_mva_struct, np.s_[:int((len(b_mva_struct) / 2)):1], 0)
+        '''
         cylinArray = mf.RectToCylindrical(b_mva_struct)
         normArray = mf.normalize(b_mva_struct)
         #B_axi, B_azi = mf.modelFluxRope(0.5)
@@ -400,10 +402,10 @@ for M in MMS:
             print ("The event was accepted by first Chi Squared. Chi Square Value of: " + str(minchi) + " Impact Parameter of: " + str(impParam))
         if(isRejected == False):
             aAxi, bAxi, aAzi, bAzi = mf.curveFit(cylinArray, impParam, label, counter)
-            chiSquare2 = mf.chiSquared2(b_mva_struct, impParam, label, aAxi, bAxi, aAzi, bAzi, counter)
-            #chiSquare2 = mf.chiSquared2FF(b_mva_struct, impParam, label)
-            print ("Second chi-square test value" + str(chiSquare2))
-            
+            chiSquare2, minIp = mf.modelMove2(b_mva_struct, impParam, label, aAxi, bAxi, aAzi, bAzi, counter)
+            #chiSquare2 = mf.chiSquared2FF(b_mva_struct, impParam, label, counter)
+            print ("Second chi-square test value" + str(chiSquare2) + "Minimum Impact Parameter" + str(minIp))
+        '''    
         magnitude = [0 for x in range(len(normArray))]
         for p in range(len(normArray)):
             magnitude[p] = (normArray[p][0] ** 2) + (normArray[p][1] ** 2) + (normArray[p][2] ** 2)
@@ -421,10 +423,10 @@ for M in MMS:
         plt.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter)+ ' Magnitude' + str(label) + '.png')
         
         plt.show() 
-
+        '''
 
         
-        mf.writeToCSV(counter, label, minChiSquaredWhole, minChiSquaredlH, minChiSquareduH, minchi, impParam, chiSquare2) 
+        mf.writeToCSV(counter, label, minchi, impParam, chiSquare2, minIp) 
 
         
         

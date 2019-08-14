@@ -19,7 +19,7 @@ import mpmath as mp
 from sympy import besselj, jn
 from sympy.solvers import solve
 import csv
-from os import path
+
 #TODO: Write a function that normalizes the data 
 
 #Turns (x,y,z) coordinates into (r, z, theta) coordinates 
@@ -101,7 +101,7 @@ def normalize2(oldArray, impact_param): #maximmum magnitude is based off of the 
     return normalized 
     
 
-def chisquared1(RectArray, label, counter, half): #first chi-squared test as defined by Smith et al., 2017
+def chisquared1(RectArray, label): #first chi-squared test as defined by Smith et al., 2017
     CylindArray = RectToCylindrical(RectArray) 
     #not sure if this is correct -- made a lot of assumptions
     impactParameter = 0
@@ -141,8 +141,8 @@ def chisquared1(RectArray, label, counter, half): #first chi-squared test as def
             minChiSquared = chiSquaredValue
             impactParameter = imp 
             
-    plotComponent(chiSquarePlotData, chiSquareInput, label, counter, half)
-    plotComponents(impactParameter, CylindArray, label, counter, half)
+    #plotComponent(chiSquarePlotData, chiSquareInput, label, counter, half)
+    #plotComponents(impactParameter, CylindArray, label, counter, half)
     print("The impact parameter is" + str(impactParameter))
     
     
@@ -195,7 +195,7 @@ def chiSquared2(RectArray, imp_Param, label, aAxi, bAxi, aAzi, bAzi, counter): #
     plotComponents3(imp_Param, RectArray, label, aAxi, bAxi, aAzi, bAzi, counter)
     return chiSquare
 
-def chiSquared2FF(RectArray, imp_Param, label): #No conversion is needed for this one
+def chiSquared2FF(RectArray, imp_Param, label, counter): #No conversion is needed for this one
     RectArray = normalize(RectArray)
     numOfData = len(RectArray)
     chiSquare = 0    
@@ -210,7 +210,7 @@ def chiSquared2FF(RectArray, imp_Param, label): #No conversion is needed for thi
         b_model_min, b_model_max = getComponents(theta, b_azi) 
         chiSquare += ((RectArray[x][0] - b_model_max) ** 2) + ((RectArray[x][1] - b_axi) ** 2) + ((RectArray[x][2] - b_model_min)  ** 2)
     chiSquare = chiSquare / ((3 * numOfData) - 4)
-    plotComponents3FF(imp_Param, RectArray, label)
+    plotComponents3FF(imp_Param, RectArray, label, counter)
     return chiSquare
 
 def getRadialDistance(s, numOfDataPoints, index, isEven):
@@ -239,12 +239,12 @@ def plotComponent(components1, xAxis, label, counter, half):
     plt2.figure(1)
     plt2.plot(xAxis, components1, 'ro')
     plt2.title("Chi-Square Value over Impact Parameters 0 to 0.95")
-    if (half == 1):
-        plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterWhole' + str(label) + '.png')
-    if (half == 0):
-        plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterLowerHalf' + str(label) + '.png')
-    if (half == 2):
-        plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterUpperHalf' + str(label) + '.png')
+    #if (half == 1):
+        #plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterWhole' + str(label) + '.png')
+    #if (half == 0):
+        #plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterLowerHalf' + str(label) + '.png')
+    #if (half == 2):
+        #plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' ImpactParameterUpperHalf' + str(label) + '.png')
     print("Saved!" + str(label))
     plt2.show()
 def plotComponents(impactParam, array, label, counter, half):
@@ -289,12 +289,12 @@ def plotComponents(impactParam, array, label, counter, half):
     
     plt2.legend(handles=[b1, b2, b4, b3])
     
-    if(half == 1):
-        plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialWhole' + str(label) + '.png')
-    if(half == 0):
-          plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialLowerHalf' + str(label) + '.png')
-    if(half == 2):
-          plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialUpperHalf' + str(label) + '.png')
+    #if(half == 1):
+          #plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialWhole' + str(label) + '.png')
+    #if(half == 0):
+          #plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialLowerHalf' + str(label) + '.png')
+    #if(half == 2):
+          #plt2.savefig('FittingPics' + str(counter) +'/Satellite' + str(counter) + ' AzimuthalandAxialUpperHalf' + str(label) + '.png')
     print("Saved!" + str(label))
     plt2.show()
             
@@ -344,7 +344,7 @@ def plotComponents3(impactParam, array, label, aAxi, bAxi, aAzi, bAzi, counter):
     print("Saved!" + str(label))
     plt2.show()
 
-def plotComponents3FF(impactParam, array, label):
+def plotComponents3FF(impactParam, array, label, counter):
     numOfData = len(array)   
     isEven = False
     radialDist = 0
@@ -386,14 +386,17 @@ def plotComponents3FF(impactParam, array, label):
                           markersize=10, label='Data Axial') 
     
     plt2.legend(handles=[b1, b2, b3, b4, b5, b6])    
-    plt2.savefig('FittingPics/Components' + str(label) + '.png')
+    plt2.savefig('FittingPics' + str(counter) + '/Satellite' + str(counter) + ' Components' + str(label) + '.png')
     plt2.show()
 
 def plotForceFreeFluxRope():
     plt2.figure(8)
-    s = 0.7
+    s = 0.5
     numOfDataPoints = 200 
     isEven = True 
+    plt2.title("Model Force Free Flux Rope Impact Parameter:0.5")
+    plt2.xlabel("Index Number / Radius")
+    plt2.ylabel("Magnetic Field Strength")
     for i in range(0, 201, 1):
         r = getRadialDistance(s, numOfDataPoints, i, isEven)
         B_axial, B_azimuthal = modelForceFreeFluxRope(r)
@@ -401,6 +404,19 @@ def plotForceFreeFluxRope():
         plt2.plot(i, B_axial, marker='o', markersize=3, color="red")
         plt2.plot(i, B_azimuthal, marker='o', markersize=3, color="blue")
         plt2.plot(i, Bmax, marker='o', markersize=3, color="green")
+        
+    
+    
+    b1 = mlines.Line2D([], [], color='red', marker='o', linestyle='None',
+                          markersize=10, label='B-axial')
+    b2 = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
+                          markersize=10, label='B-azimuthal')
+    b3 = mlines.Line2D([], [], color='green', marker='o', linestyle='None',
+                          markersize=10, label='Bz/BMax')
+        
+    plt2.legend(handles=[b1, b2, b3], bbox_to_anchor=(0.3, 0.3)) 
+    
+    
     plt2.show()
     
     
@@ -547,15 +563,49 @@ def modelMove(dataArray, label, counter):
     return minChi, impParam, half, minChiSquaredlH, minChiSquareduH, minChiSquared
 
 
-def writeToCSV(counter, label, csW, csLH, csUH, mCS, iP, sCSV):
+def writeToCSV(counter, label, mCS, iP, sCSV, minIp):
     
     fileName = 'Satellite ' + str(counter)
     
     with open(fileName, 'a', newline='') as f:
         writer = csv.writer(f)
-        if (path.exists(fileName + '.csv') == False):
-            writer.writerow(['Event number', 'Chi-Square Whole', 'Chi-Square Lower Half', 'Chi-Square Upper Half', 'Minimum Chi-Squared', 'Impact Parameter', 'Second Chi-Squared Value'])
-        writer.writerow([label, csW, csLH, csUH, mCS, iP, sCSV])
+        writer.writerow(['Event number', 'Minimum Chi-Squared', 'Impact Parameter', 'Second Chi-Squared Value', 'Minimum Impact 2'])
+        writer.writerow([label, mCS, iP, sCSV, minIp])
     print("Wrote once!")
     
-   
+
+
+
+def modelMove2(RectArray, imp_Param, label, aAxi, bAxi, aAzi, bAzi, counter):
+    ip = imp_Param
+    minChiSquare = 0
+    minIp = 0
+    plt2.figure(15)
+    chiSquarePlotData = [0 for x in range(20)]
+    chiSquareInput = [x for x in range(20)]
+    ip = ip - .1
+    ip = abs(ip)
+    for i in range(-10, 10):
+    
+        
+        chiSquare = chiSquared2(RectArray, ip, label, aAxi, bAxi, aAzi, bAzi, counter)
+        print(chiSquare)
+        print(ip)
+        ip += .02
+        print(i + 10)
+        chiSquareInput[i + 10] = ip
+        chiSquarePlotData[i + 10] = chiSquare
+        
+        if (i == -10):
+            minChiSquare = chiSquare
+            minIp = ip
+        elif(chiSquare < minChiSquare):
+            minChiSquare = chiSquare
+            minIp = ip
+    plt2.plot(chiSquareInput, chiSquarePlotData, marker='o', markersize=3, color="blue")     
+    plt2.show()
+    return minChiSquare, minIp
+ 
+    
+    
+    
