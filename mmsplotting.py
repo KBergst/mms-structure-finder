@@ -72,8 +72,9 @@ def size_fitter(x,y,fitfn,guess):
     fit_bdy=[x_for_fit[0],x_for_fit[-1]]
     x_smooth=np.linspace(fit_bdy[0],fit_bdy[1],num=1000)
     y_smooth=fitfn(x_smooth,*popt)
+    errs=np.sqrt(np.diagonal(pcov)) #returns standard deviations
     
-    return x_smooth,y_smooth,popt
+    return x_smooth,y_smooth,popt,errs
     
     
 ###### DIRECTORY MANAGEMENT FNS ###############################################
@@ -487,18 +488,24 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                                       for i in range(len(bins)-1)])
                 pwr_guess=[max(arr),-1.]
                 exp_guess=[max(arr),0.005]
-                x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp,
-                                                   exp_guess)
-                x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr,
-                                                   pwr_guess)
+                x_exp,y_exp,params_exp,exp_errs=size_fitter(bin_centers,arr,
+                                                            fitfn_exp,
+                                                            exp_guess)
+                x_pwr,y_pwr,params_pwr,pwr_errs=size_fitter(bin_centers,arr,
+                                                            fitfn_pwr,
+                                                            pwr_guess)
                 basic_plotter(axs[i],x_exp,y_exp,
-                              legend='Exponential fit ${} e^{{-{}x}}$' \
+                              legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$' \
                               .format(f"{params_exp[0]:.2f}",
-                                         f"{params_exp[1]:.3f}"))
+                                         f"{exp_errs[0]:.2f}",
+                                         f"{params_exp[1]:.4f}",
+                                         f"{exp_errs[1]:.4f}"))
                 basic_plotter(axs[i],x_pwr,y_pwr,
-                              legend='Power law fit ${} x^{{ {} }}$' \
+                              legend='Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$' \
                               .format(f"{params_pwr[0]:.2f}",
-                                         f"{params_pwr[1]:.2f}")) 
+                                         f"{pwr_errs[0]:.2f}",
+                                         f"{params_pwr[1]:.2f}",
+                                         f"{pwr_errs[1]:.2f}")) 
         if log:
             structure_type+='_log'
             
@@ -718,18 +725,22 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
                                   for i in range(len(bins)-1)])
             pwr_guess=[max(arr),-1.]
             exp_guess=[max(arr),0.005]
-            x_exp,y_exp,params_exp=size_fitter(bin_centers,arr,fitfn_exp,
-                                               exp_guess)
-            x_pwr,y_pwr,params_pwr=size_fitter(bin_centers,arr,fitfn_pwr,
-                                               pwr_guess)
+            x_exp,y_exp,params_exp,exp_errs=size_fitter(bin_centers,arr,
+                                                        fitfn_exp,exp_guess)
+            x_pwr,y_pwr,params_pwr,pwr_errs=size_fitter(bin_centers,arr,
+                                                        fitfn_pwr,pwr_guess)
             basic_plotter(ax,x_exp,y_exp,
-                          legend='Exponential fit ${} e^{{-{}x}}$' \
+                          legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$' \
                           .format(f"{params_exp[0]:.2f}",
-                                     f"{params_exp[1]:.3f}"))
+                                     f"{exp_errs[0]:.2f}",
+                                     f"{params_exp[1]:.4f}",
+                                     f"{exp_errs[1]:.4f}"))
             basic_plotter(ax,x_pwr,y_pwr,
-                          legend='Power law fit ${} x^{{ {} }}$' \
+                          legend='Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$' \
                           .format(f"{params_pwr[0]:.2f}",
-                                     f"{params_pwr[1]:.2f}")) 
+                                     f"{pwr_errs[0]:.2f}",
+                                     f"{params_pwr[1]:.2f}",
+                                     f"{pwr_errs[1]:.2f}")) 
         if log:
             structure_type+='_log'
             

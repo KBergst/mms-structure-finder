@@ -168,6 +168,7 @@ vcompare_legend=['Structure normal velocity','Ion normal velocity',
                  'Electron normal velocity']
 j_labels=['MMS GSM curlometer current density vs. time','Time', 
           r'Jy GSM (microA/$m^{2}$)'  ]
+j_legend=['Jx','Jy','Jz']
 n_labels=['MMS spatially averaged density vs. time','Time',
           'density ($cm^{-3}$)']
 n_legend=['ion density','electron density']
@@ -356,8 +357,10 @@ for i in range(len(crossing_indices_M1)):
     e_field_struct_sync={}
     e_struct_bary=np.zeros((len(time_struct_b),3)) #b at barycenter
 
-    
-    for M in MMS:
+    FPI_e_bad=np.zeros(4,dtype=bool)
+    FPI_i_bad=np.zeros(4,dtype=bool)
+
+    for j,M in enumerate(MMS):
         tmp=msc.bartlett_interp(b_field[M],time_reg_b[M],
                                                    time_cut_b)
         b_field_cut_sync[M]=ma.smoothing(tmp)
@@ -373,36 +376,26 @@ for i in range(len(crossing_indices_M1)):
                                                time_cut_b)
         vi_struct_sync[M]=vi_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1],:]
-        vi_struct_bary=vi_struct_bary+vi_struct_sync[M]/len(MMS)
         ve_cut_sync[M]=msc.bartlett_interp(ve[M],time_reg_b[M],
                                                time_cut_b)
         ve_struct_sync[M]=ve_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1],:]
-        ve_struct_bary=ve_struct_bary+ve_struct_sync[M]/len(MMS)
         ni_cut_sync[M]=msc.bartlett_interp(ni[M],time_reg_b[M],
                                                time_cut_b)
         ni_struct_sync[M]=ni_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1]]
-        ni_struct_bary=ni_struct_bary+ \
-                    ni_struct_sync[M].reshape(len(ni_struct_sync[M]))/len(MMS)
         ne_cut_sync[M]=msc.bartlett_interp(ne_nozero[M],time_reg_b[M],
                                                time_cut_b)
         ne_struct_sync[M]=ne_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1]]
-        ne_struct_bary=ne_struct_bary+ \
-                    ne_struct_sync[M].reshape(len(ne_struct_sync[M]))/len(MMS)
         presi_cut_sync[M]=msc.bartlett_interp(presi[M],time_reg_b[M],
                                                time_cut_b)
         presi_struct_sync[M]=presi_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1]]
-        presi_struct_bary=presi_struct_bary+ \
-                    presi_struct_sync[M].reshape(len(presi_struct_sync[M]))/len(MMS)
         prese_cut_sync[M]=msc.bartlett_interp(prese[M],time_reg_b[M],
                                                time_cut_b)
         prese_struct_sync[M]=prese_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1]]
-        prese_struct_bary=prese_struct_bary+ \
-                    prese_struct_sync[M].reshape(len(prese_struct_sync[M]))/len(MMS)
         errflags_i_interp=interp.interp1d(mt.datetime2TTtime(time_reg_b[M]),errflags_i[M],
                                                kind="nearest")
         errflags_i_cut_sync[M]=errflags_i_interp(mt.datetime2TTtime(time_cut_b)).astype(int)
@@ -418,6 +411,41 @@ for i in range(len(crossing_indices_M1)):
         e_field_struct_sync[M]=e_field_cut_sync[M][cut_struct_idxs[i][0]: \
                                               cut_struct_idxs[i][1],:]
         e_struct_bary=e_struct_bary+e_field_struct_sync[M]/len(MMS)
+        
+        #check if FPI data is struggling
+        if(np.any(ne_struct_sync[M] < 0.01) or np.any(prese_struct_sync[M] <0)):
+            FPI_e_bad[j]=True
+        if(np.any(ni_struct_sync[M] < 0.01) or np.any(presi_struct_sync[M] <0)):
+            FPI_i_bad[j]=True
+            
+    #compute FPI barycenter values, ignoring bad data
+    total_FPI_e_sats=sum(~FPI_e_bad)
+    total_FPI_i_sats=sum(~FPI_i_bad)
+    for j,M in enumerate(MMS):
+        if not FPI_e_bad[j]:
+            ne_struct_bary=ne_struct_bary+ \
+                    ne_struct_sync[M].reshape(len(ne_struct_sync[M]))/total_FPI_e_sats
+            prese_struct_bary=prese_struct_bary+ \
+                    prese_struct_sync[M].reshape(len(prese_struct_sync[M]))/total_FPI_e_sats   
+            ve_struct_bary=ve_struct_bary+ve_struct_sync[M]/total_FPI_e_sats
+        if not FPI_i_bad[j]:
+            ni_struct_bary=ni_struct_bary+ \
+                    ni_struct_sync[M].reshape(len(ni_struct_sync[M]))/total_FPI_i_sats
+            presi_struct_bary=presi_struct_bary+ \
+                    presi_struct_sync[M].reshape(len(presi_struct_sync[M]))/total_FPI_i_sats
+            vi_struct_bary=vi_struct_bary+vi_struct_sync[M]/total_FPI_i_sats
+    #case of no satellites having good FPI data:
+    if total_FPI_e_sats == 0:
+        ne_struct_bary = prese_struct_bary = np.full_like(ne_struct_bary,
+                                                          np.nan,
+                                                          dtype=np.double)
+        ve_struct_bary = np.full_like(ve_struct_bary,np.nan,dtype=np.double)
+    if total_FPI_i_sats == 0:
+        ni_struct_bary = presi_struct_bary = np.full_like(ni_struct_bary,
+                                                          np.nan,
+                                                          dtype=np.double) 
+        vi_struct_bary = np.full_like(vi_struct_bary,np.nan,dtype=np.double)
+        
     #sync curlometer data also
     j_cut_sync=msc.bartlett_interp(j_curl,time_reg_jcurl,time_cut_b)
     j_struct_sync=j_cut_sync[cut_struct_idxs[i][0]:cut_struct_idxs[i][1],:]
@@ -526,7 +554,6 @@ for i in range(len(crossing_indices_M1)):
                 
             
     #calculate plasma beta
-    pres_struct_bary=prese_struct_bary+presi_struct_bary
     betai_struct_bary=pp.beta(presi_struct_bary,b_struct_bary)
     betai_avg=np.average(betai_struct_bary)
     str_beta_avg=f"{betai_avg:.2f}"  #string formatting
@@ -628,8 +655,10 @@ for i in range(len(crossing_indices_M1)):
                                      labels=eigenvec_label[j],
                                      lims=[min(time_cut_b),max(time_cut_b)],
                                      legend=eigenvec_legend[k])
-        mmsp.tseries_plotter(fig,ax8,time_cut_b,j_cut_sync[:,1],j_labels,
-                             lims=[min(time_cut_b),max(time_cut_b)]) #plot jy
+        for j in range(3):
+            mmsp.tseries_plotter(fig,ax8,time_cut_b,j_cut_sync[:,j],j_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=j_legend[j]) #plot j
         #plot the structure velocities
         for j in range(3):
             mmsp.tseries_plotter(fig,ax9,time_struct_b,
