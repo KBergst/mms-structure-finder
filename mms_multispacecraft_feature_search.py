@@ -60,35 +60,42 @@ nbins_small=10 #number of bins for log-scale histograms and other small hists
 nbins=15 #number of bins for the size histograms
 
 DEBUG=0 #chooses whether to stop at iteration 15 or not
-REPLOT=1 #chooses whether to regenerate the plots or not
+REPLOT=0 #chooses whether to regenerate the plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
     
     #initializer
-    def __init__(self,kind,dt,size,size_e,size_p,gf,vel,vel_e,vel_p,dim):
+    def __init__(self,kind,dt,size,size_e,size_p,cf,gf,vel,vel_e,vel_p,dim,
+                 je_para,je_perp):
         self.kind=kind
         self.duration=dt
         self.size=size
         self.electron_normalized_size=size_e
         self.ion_normalized_size=size_p
+        self.core_field=cf
         self.guide_field=gf
         self.normal_speed=vel
         self.electron_normalized_speed=vel_e
         self.ion_normalized_speed=vel_p
         self.dimensionality=dim
+        self.j_dot_E_parallel=je_para
+        self.j_dot_E_perpendicular=je_perp
         
     #for pluralization in outputs
     plurals={'size':'sizes',
                  'electron_normalized_size':'electron-normalized sizes',
                  'ion_normalized_size':'ion-normalized sizes',
                   'kind':'kinds',
+                  'core_field':'core fields',
                   'guide_field':'guide fields',
                   'normal_speed':'normal speeds',
                   'electron_normalized_speed':'electron-normalized speeds',
                   'ion_normalized_speed':'ion-normalized speeds',
                   'duration':'durations',
-                  'dimensionality':'dimensionalities'
+                  'dimensionality':'dimensionalities',
+                  'j_dot_E_parallel':r'averaged parallel components of J$\cdot$E',
+                  'j_dot_E_perpendicular':r'averaged perpendicular components of J$\cdot$E'
                 }
     
     #for getting units
@@ -96,12 +103,15 @@ class Structure:
                 'electron_normalized_size':'electron inertial lengths',
                 'ion_normalized_size':'ion inertial lengths',
                 'kind':'',
+                'core_field':'nT',
                 'guide_field':'nT',
                 'normal_speed':'km/s',
                 'electron_normalized_speed':'unitless',
                 'ion_normalized_speed':'unitless',   
                 'duration':'s',
-                'dimensionality':''
+                'dimensionality':'',
+                'j_dot_E_parallel':r'nW/$m^3$',
+                'j_dot_E_perpendicular':r'nW/$m^3$'
             }
 
 ###### MAIN ###################################################################
@@ -149,6 +159,24 @@ e_field={}
 j_curl=np.transpose(np.array([[],[],[]]))  #for all j data
 time_reg_jcurl=np.array([])
 
+#variables for global J dot E info
+cadence=1/128 #time cadence for MMS burst data
+time_tot={} #at B cadence
+time_structs=0 #at B cadence
+time_plasmoid=0
+time_pullcs=0
+time_pushcs=0
+j_dot_E_para_sum={}
+j_dot_E_perp_sum={}
+j_dot_E_struct_para_sum=0
+j_dot_E_struct_perp_sum=0
+j_dot_E_plasmoid_para=0
+j_dot_E_plasmoid_perp=0
+j_dot_E_pullcs_para=0
+j_dot_E_pullcs_perp=0
+j_dot_E_pushcs_para=0
+j_dot_E_pushcs_perp=0
+
 #legends, etc. for plotting
 b_label=['Magnetic field of structure over all satellites','Time','Bz (nT)']
 eigenval_label=['Eigenvalues from MDD','Time',r'$\lambda$']
@@ -175,9 +203,11 @@ n_legend=['ion density','electron density']
 curvature_labels=['Magnetic field curvature vs. time','Time',
                   'Curvature ($km^{-1}$)']
 curvature_legend=['x component','y component','z component','total']
-pressure_labels=['Total pressure vs. time','Time','Pressure (nPa)']
-e_labels=['Electric field of structure over all satellites','Time','E (mV/m)']
+e_labels=['Barycenter Electric field','Time','E (mV/m)']
 e_legend=['Ex','Ey','Ez']
+je_labels=[r'$J\cdot E$ of structure at barycenter','Time',
+           r'$J\cdot E$ ($nW/m^3$)']
+je_legend=[r'$J\cdot E_{\parallel}$',r'$J\cdot E_{\perp}$',r'$J\cdot E$']
 
 # get data for all satellites
 j_list=md.filenames_get(os.path.join(path,j_names_file))
@@ -274,7 +304,7 @@ for M in MMS:
                                                ['mms'+M+'_edp_epoch_brst_l2',
                                                'mms'+M+'_edp_dce_gse_brst_l2'])
         tmp_efield_interp=interp.interp1d(TT_time_edp_tmp,e_field_tmp,axis=0,
-                                          fill_value="extrapolate") #interpolate electron  pressure data
+                                          bounds_error=False, fill_value=0.) #interpolate electron  pressure data
         efield_btime_tmp=tmp_efield_interp(TT_time_tmp) #interpolate e-field to b-field timestamps
         e_field[M]=np.concatenate((e_field[M],efield_btime_tmp))
     #populate other necessary data dictionaries
@@ -288,6 +318,12 @@ for M in MMS:
                             ne_nozero[M],TT_time_b[M])
     tmp_ve_spline=interp.CubicSpline(TT_time_j,ve_tmp) #interpolate electron veloc data
     ve[M]=tmp_ve_spline(TT_time_b[M]) #interpolate electron veloc to b-field timestamps    
+    
+    #populate j dot E total-related variables
+    time_tot[M]=len(time_reg_b[M])*cadence #at B cadence
+    tmp,j_d_E_para,j_d_E_perp=pp.j_dot_e(j_curl,e_field[M],b_field[M])
+    j_dot_E_para_sum[M]=sum(j_d_E_para)
+    j_dot_E_perp_sum[M]=sum(j_d_E_perp)
 
 #find potential structure candidates from MMS 1 (data smoothed a small amount)
 bz_M1=ma.smoothing(b_field[MMS[0]][:,2],fixed=True,fixedwidth=6)
@@ -467,7 +503,7 @@ for i in range(len(crossing_indices_M1)):
     type_str='undefined'
     vi_norm=np.zeros(len(time_struct_b))
     ve_norm=np.zeros(len(time_struct_b))
-    avg_guide_field=0
+    avg_core_field=0
     b_mdd=np.empty_like(b_struct_bary) #per each eigenvector in timeseries
     b_mdd_avg=np.empty_like(b_struct_bary) #uses average eigenvectors
     if(dims_struct[2]):
@@ -477,7 +513,7 @@ for i in range(len(crossing_indices_M1)):
             ve_norm[n]=np.linalg.norm(ve_struct_bary[n,:])
             b_mdd[n,:]=np.transpose(all_eigenvecs[n,:,:]) @ b_struct_bary[n,:]
             b_mdd_avg[n,:]=np.transpose(avg_eigenvecs) @ b_struct_bary[n,:]
-            avg_guide_field=avg_guide_field+b_mdd[n,2]/len(time_struct_b)
+            avg_core_field=avg_core_field+b_mdd[n,2]/len(time_struct_b)
     elif(dims_struct[1]):
         type_str="2D structure"
         for n in range(len(time_struct_b)):
@@ -491,7 +527,7 @@ for i in range(len(crossing_indices_M1)):
 #            ve_norm[n]=np.sqrt(ve_mdd[0]*ve_mdd[0]+ve_mdd[1]*ve_mdd[1])            
             b_mdd[n,:]=np.transpose(all_eigenvecs[n,:,:]) @ b_struct_bary[n,:]
             b_mdd_avg[n,:]=np.transpose(avg_eigenvecs) @ b_struct_bary[n,:]
-            avg_guide_field=avg_guide_field+b_mdd[n,2]/len(time_struct_b)
+            avg_core_field=avg_core_field+b_mdd[n,2]/len(time_struct_b)
     elif(dims_struct[0]):
         type_str="1D structure"
         for n in range(len(time_struct_b)):
@@ -505,10 +541,10 @@ for i in range(len(crossing_indices_M1)):
 #            ve_norm[n]=abs(ve_mdd[0])
             b_mdd[n,:]=np.transpose(all_eigenvecs[n,:,:]) @ b_struct_bary[n,:]
             b_mdd_avg[n,:]=np.transpose(avg_eigenvecs) @ b_struct_bary[n,:]
-            avg_guide_field=avg_guide_field+b_mdd[n,2]/len(time_struct_b)
+            avg_core_field=avg_core_field+b_mdd[n,2]/len(time_struct_b)
     if(multidiml):
         type_str=type_str+" with some smaller-dimensional qualities"
-    str_avg_guide_field=f"{avg_guide_field:.2f}"
+    str_avg_core_field=f"{avg_core_field:.2f}"
 
 
     #do STD analysis
@@ -561,6 +597,19 @@ for i in range(len(crossing_indices_M1)):
     curvature_struct=msc.curvature(b_field_struct_sync,rad_struct_sync,
                                    b_struct_bary)
     total_curvature_struct=np.linalg.norm(curvature_struct,axis=1)
+    #calculate JdotE, perp and para, and add to total
+    jE_struct,jE_para_struct,jE_perp_struct=pp.j_dot_e(j_struct_sync,
+                                                       e_struct_bary,
+                                                       b_struct_bary)
+    jE_para_avg=np.average(jE_para_struct)
+    jE_perp_avg=np.average(jE_perp_struct)
+    time_structs+=len(time_struct_b)*cadence
+    j_dot_E_struct_para_sum+=sum(jE_para_struct)
+    j_dot_E_struct_perp_sum+=sum(jE_perp_struct)
+
+    #calculate approximate guide field
+    gf,tmp=msc.guide_field(b_field_struct_sync)
+    str_gf=f"{gf:.2f}"
     #calculate approximate electron and ion plasma frequencies and skin depths
     we_struct_bary=pp.plasma_frequency(ne_struct_bary,const.m_e)
     wp_struct_bary=pp.plasma_frequency(ni_struct_bary,const.m_p) #assuming all ions are protons (valid?)
@@ -577,6 +626,7 @@ for i in range(len(crossing_indices_M1)):
     crossing_type,type_flag=ms.structure_classification(crossing_signs_M1[i],
                                                         v_sign,v_qual,jy_sign,
                                                         jy_qual,quality_min)
+        
     crossing_duration=(time_struct_b[-1]-time_struct_b[0]).total_seconds()
     crossing_size=ms.structure_sizer([time_struct_b[0],
                                           time_struct_b[-1]],vtot)
@@ -592,10 +642,24 @@ for i in range(len(crossing_indices_M1)):
     MMS_structures.append(Structure(type_dict[type_flag],crossing_duration,
                                                 crossing_size,crossing_size_de,
                                                 crossing_size_dp,
-                                                avg_guide_field,avg_vtot,
+                                                avg_core_field,gf,avg_vtot,
                                                 avg_vtot_e,avg_vtot_p,
-                                                type_str))
-    
+                                                type_str,jE_para_avg,
+                                                jE_perp_avg))
+    #determine the j dot E breakdown for each 'real' structure
+    if type_flag == 0:
+        time_plasmoid+=len(time_struct_b)*cadence
+        j_dot_E_plasmoid_para+=sum(jE_para_struct)
+        j_dot_E_plasmoid_perp+=sum(jE_perp_struct)
+    if type_flag == 1:
+        time_pullcs+=len(time_struct_b)*cadence
+        j_dot_E_pullcs_para+=sum(jE_para_struct)
+        j_dot_E_pullcs_perp+=sum(jE_perp_struct)    
+    if type_flag == 2:
+        time_pushcs+=len(time_struct_b)*cadence
+        j_dot_E_pushcs_para+=sum(jE_para_struct)
+        j_dot_E_pushcs_perp+=sum(jE_perp_struct)
+        
     if(REPLOT):
         #structure information for plot
         jy_sign_label="jy sign is "+str(jy_sign)+" with quality "+ \
@@ -609,7 +673,8 @@ for i in range(len(crossing_indices_M1)):
         crossing_dp_label="Average proton inertial length: "+ \
                             str_dp_avg+" km"+"\n" 
         crossing_beta_label="Average ion beta: "+str_beta_avg+"\n"
-        guide_field_label="Average guide field: "+str_avg_guide_field+" nT\n"
+        core_field_label="Average core field: "+str_avg_core_field+" nT\n"
+        guide_field_label="Guide field: "+str_gf+" nT\n"
         #plot it 
         mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
         plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
@@ -711,22 +776,29 @@ for i in range(len(crossing_indices_M1)):
                                  labels=curvature_labels,
                                  lims=[min(time_cut_b),max(time_cut_b)],
                                  legend=curvature_legend[3])  
-        #plot electron and ion presssure
-        mmsp.tseries_plotter(fig,ax13,time_struct_b,
-                                 prese_struct_bary,labels=pressure_labels,
-                                 lims=[min(time_cut_b),max(time_cut_b)],
-                                 legend="electron pressure") 
-        mmsp.tseries_plotter(fig,ax13,time_struct_b,
-                                 presi_struct_bary,labels=pressure_labels,
-                                 lims=[min(time_cut_b),max(time_cut_b)],
-                                 legend="ion presssure")
-        #plot barycenter electric field
+        #plot electric field
         for j in range(3):
-            mmsp.tseries_plotter(fig,ax14,time_struct_b,
+            mmsp.tseries_plotter(fig,ax13,time_struct_b,
                                      e_struct_bary[:,j],
                                      labels=e_labels,
                                      lims=[min(time_cut_b),max(time_cut_b)],
-                                     legend=e_legend[j])             
+                                     legend=e_legend[j]) 
+        #plot J dot E components
+        mmsp.tseries_plotter(fig,ax14,time_struct_b,
+                                 jE_para_struct,
+                                 labels=je_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=je_legend[0])  
+        mmsp.tseries_plotter(fig,ax14,time_struct_b,
+                                 jE_perp_struct,
+                                 labels=je_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=je_legend[1])
+        mmsp.tseries_plotter(fig,ax14,time_struct_b,
+                                 jE_struct,
+                                 labels=je_labels,
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=je_legend[2])           
         #add horizontal and vertical lines to plot (crossing + extent)
         mmsp.line_maker([ax1,ax2,ax3,ax4,ax5,ax8,ax9,ax10,ax11,ax12,ax13,ax14],
                         time=crossing_time,edges=crossing_struct_times[i],
@@ -734,9 +806,9 @@ for i in range(len(crossing_indices_M1)):
          #add categorization information to plot
         ax67.text(0.5,0.5,type_str+'\n'+jy_sign_label+v_sign_label+ \
                  crossing_sign_label+crossing_size_label+crossing_dp_label+ \
-                 crossing_de_label+crossing_beta_label+guide_field_label+ \
-                 err_i_label+err_e_label,wrap=True,transform=ax67.transAxes,
-                 fontsize=16,ha='center',va='center')       
+                 crossing_de_label+crossing_beta_label+core_field_label+\
+                 guide_field_label+err_i_label+err_e_label,wrap=True,
+                 transform=ax67.transAxes,fontsize=16,ha='center',va='center')       
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
                                 plot_out_name+str(i)+".png"), 
                                 bbox_inches='tight')
@@ -775,7 +847,10 @@ mmsp.msc_structure_hist_maker(MMS_structures,"ion_normalized_size",
                               log=True)
 ''' make histograms of the guide field strengths of all structures'''
 mmsp.msc_structure_hist_maker(MMS_structures,'guide_field',hists_out_directory,
-                          nbins_small,structure_kinds)   
+                          nbins_small,structure_kinds)
+''' make histograms of the core field strengths of all structures'''
+mmsp.msc_structure_hist_maker(MMS_structures,'core_field',hists_out_directory,
+                          nbins_small,structure_kinds)      
 ''' make histograms of the velocities of all structures ''' 
 mmsp.msc_structure_hist_maker(MMS_structures,'normal_speed',
                               hists_out_directory,nbins,structure_kinds) 
@@ -793,9 +868,17 @@ mmsp.msc_structure_hist_maker(MMS_structures,'electron_normalized_speed',
 mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
                               hists_out_directory,nbins_small,structure_kinds,
                               log=True)
+''' make histograms of the j dot E of all structures '''
+mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_parallel',
+                              hists_out_directory,nbins,structure_kinds)
+mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_perpendicular',
+                              hists_out_directory,nbins,structure_kinds)
 ''' make scatter plot of guide field strength vs structure size '''
 mmsp.msc_structure_scatter_maker(MMS_structures,'size','guide_field',
                                  scatters_out_directory,structure_kinds)  
+''' make scatter plot of core field strength vs structure size '''
+mmsp.msc_structure_scatter_maker(MMS_structures,'size','core_field',
+                                 scatters_out_directory,structure_kinds) 
 ''' make scatter plot of normal speed vs structure size '''
 mmsp.msc_structure_scatter_maker(MMS_structures,'size','normal_speed',
                                  scatters_out_directory,structure_kinds)
@@ -816,7 +899,110 @@ mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
 mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_speed',
                                  'ion_normalized_speed',
                                  scatters_out_directory,structure_kinds)
+''' make scatter plot of the j dot E vs structure size '''   
+mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_parallel',
+                                 scatters_out_directory,structure_kinds)
+mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_perpendicular',
+                                 scatters_out_directory,structure_kinds)
+''' make scatter plot of the j dot E vs ion-normalized structure size ''' 
+mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+                                 'j_dot_E_parallel',scatters_out_directory,
+                                 structure_kinds)
+mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+                                 'j_dot_E_perpendicular',
+                                 scatters_out_directory,structure_kinds)
+
+''' J dot E INFO '''
+for M in MMS:
+    #calculate percentages for overall structures and for plasmoids, pull cs, push cs specifically
+    percent_time=time_structs/time_tot[M]*100
+    str_percent_time=f"{percent_time:.1f}"
+    percent_jE_para=j_dot_E_struct_para_sum/j_dot_E_para_sum[M]*100
+    str_percent_jE_para=f"{percent_jE_para:.1f}"
+    percent_jE_perp=j_dot_E_struct_perp_sum/j_dot_E_perp_sum[M]*100
+    str_percent_jE_perp=f"{percent_jE_perp:.1f}"
     
+    percent_time_plas=time_plasmoid/time_tot[M]*100
+    str_percent_time_plas=f"{percent_time_plas:.1f}"
+    percent_jE_para_plas=j_dot_E_plasmoid_para/j_dot_E_para_sum[M]*100
+    str_percent_jE_para_plas=f"{percent_jE_para_plas:.1f}"
+    percent_jE_perp_plas=j_dot_E_plasmoid_perp/j_dot_E_perp_sum[M]*100
+    str_percent_jE_perp_plas=f"{percent_jE_perp_plas:.1f}"
+
+    percent_time_pull=time_pullcs/time_tot[M]*100
+    str_percent_time_pull=f"{percent_time_pull:.1f}"
+    percent_jE_para_pull=j_dot_E_pullcs_para/j_dot_E_para_sum[M]*100
+    str_percent_jE_para_pull=f"{percent_jE_para_pull:.1f}"
+    percent_jE_perp_pull=j_dot_E_pullcs_perp/j_dot_E_perp_sum[M]*100
+    str_percent_jE_perp_pull=f"{percent_jE_perp_pull:.1f}"
+    
+    percent_time_push=time_pushcs/time_tot[M]*100
+    str_percent_time_push=f"{percent_time_push:.1f}"
+    percent_jE_para_push=j_dot_E_pushcs_para/j_dot_E_para_sum[M]*100
+    str_percent_jE_para_push=f"{percent_jE_para_push:.1f}"
+    percent_jE_perp_push=j_dot_E_pushcs_perp/j_dot_E_perp_sum[M]*100
+    str_percent_jE_perp_push=f"{percent_jE_perp_push:.1f}"
+    
+    percent_jE_para_perp=j_dot_E_para_sum[M]/(j_dot_E_para_sum[M]+ \
+                                             j_dot_E_perp_sum[M])*100 #percentage of j dot E from parallel
+    str_percent_jE_para_perp = f"{percent_jE_para_perp:.1f}"               
+    #print out all the info                                     
+    print('For MMS '+str(M)+':')
+    
+    print(r'Percentage of total time taken up by identified structures: {}%' \
+                                                     .format(str_percent_time))
+    print(r'Percentage of J dot E parallel from structures: {}%' \
+                                                  .format(str_percent_jE_para))
+    print(r'Percentage of J dot E perp from structures: {}%' \
+                                                  .format(str_percent_jE_perp))
+    
+    print(r'Percentage of total time taken up by plasmoids: {}%' \
+                                              .format(str_percent_time_plas))
+    print(r'Percentage of J dot E parallel from plasmoids: {}%' \
+                                             .format(str_percent_jE_para_plas))
+    print(r'Percentage of J dot E perp from plasmoids: {}%' \
+                                             .format(str_percent_jE_perp_plas))
+    
+    print(r'Percentage of total time taken up by pull current sheets: {}%' \
+                                              .format(str_percent_time_pull))
+    print(r'Percentage of J dot E parallel from pull current sheets: {}%' \
+                                             .format(str_percent_jE_para_pull))
+    print(r'Percentage of J dot E perp from pull current sheets: {}%' \
+                                             .format(str_percent_jE_perp_pull))
+    
+    print(r'Percentage of total time taken up by push current sheets: {}%' \
+                                              .format(str_percent_time_push))
+    print(r'Percentage of J dot E parallel from push current sheets: {}%' \
+                                             .format(str_percent_jE_para_push))
+    print(r'Percentage of J dot E perp from push current sheets: {}%' \
+                                             .format(str_percent_jE_perp_push))
+    
+    print(r'Percentage ofJ dot E parallel contribution to J dot E:'
+          ' {}%'.format(str_percent_jE_para_perp))
+    
+percent_jE_para_perp_struct=j_dot_E_struct_para_sum/(j_dot_E_struct_para_sum+ \
+                                                j_dot_E_struct_perp_sum)*100 
+str_percent_jE_para_perp_struct = f"{percent_jE_para_perp_struct:.1f}"
+percent_jE_para_perp_plas=j_dot_E_plasmoid_para/(j_dot_E_plasmoid_para+ \
+                                                j_dot_E_plasmoid_perp)*100 
+str_percent_jE_para_perp_plas = f"{percent_jE_para_perp_plas:.1f}"
+percent_jE_para_perp_pull=j_dot_E_pullcs_para/(j_dot_E_pullcs_para+ \
+                                                j_dot_E_pullcs_perp)*100 
+str_percent_jE_para_perp_pull = f"{percent_jE_para_perp_pull:.1f}"
+percent_jE_para_perp_push=j_dot_E_pushcs_para/(j_dot_E_pushcs_para+ \
+                                                j_dot_E_pushcs_perp)*100 
+str_percent_jE_para_perp_push = f"{percent_jE_para_perp_push:.1f}"
+                                                     
+print('Overall:')
+print(r'Percentage of J dot E parallel contribution to J dot E within the '
+      'structures: {}%'.format(percent_jE_para_perp_struct))
+print(r'Percentage of J dot E parallel contribution to J dot E within the '
+      'plasmoids: {}%'.format(percent_jE_para_perp_plas))
+print(r'Percentage of J dot E parallel contribution to J dot E within the '
+      'pull current sheets: {}%'.format(percent_jE_para_perp_pull))
+print(r'Percentage of J dot E parallel contribution to J dot E within the '
+      'push current sheets: {}%'.format(percent_jE_para_perp_push))
+
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start))) 

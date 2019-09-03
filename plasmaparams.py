@@ -93,3 +93,39 @@ def electron_veloc(j,time_j,vi,ni,time_ni,ne,time_ne):
     ve=np.concatenate(ve_list,axis=0)
     return ve
 
+def j_dot_e(j,E,B):
+    '''
+    Finds the energy exchange between fields and particles, and in particular
+    the quantities perpendicular and parallel to the magnetic field.
+    Inputs:
+        j- array with the curlometer current in microAmps/m^2
+        E- array with electric field in mV/m
+        B- array with magnetic field in nT
+    Outputs:
+        jE- total j dot E at each point in time
+        jE_para- the parallel component of j dot E at each point in time
+        jE_perp- the perpendicular component of j dot E at each point in time
+    '''
+    B_tot=np.linalg.norm(B,axis=1)
+    jE_list=[]
+    jE_para_list=[]
+    jE_perp_list=[]
+    for n in range(len(j[:,0])):        
+        j_dot_E=np.dot(j[n,:],E[n,:])
+        j_para=np.dot(j[n,:],B[n,:])/B_tot[n]
+        E_para=np.dot(E[n,:],B[n,:])/B_tot[n]
+        j_dot_E_para=j_para*E_para
+        j_dot_E_perp=j_dot_E-j_dot_E_para
+        
+        jE_list.append([j_dot_E])
+        jE_para_list.append([j_dot_E_para])
+        jE_perp_list.append([j_dot_E_perp])
+        
+    jE=np.concatenate(jE_list)
+    jE_para=np.concatenate(jE_para_list)
+    jE_perp=np.concatenate(jE_perp_list)
+    
+    return jE,jE_para,jE_perp
+    
+    
+

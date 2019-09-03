@@ -279,6 +279,14 @@ def MDD(b_fields,spacecrafts_coords):
             if np.dot(center_eigenvecs[:,i],all_eigenvecs[n,:,i]) < 0:
                 all_eigenvecs[n,:,i]=-1*all_eigenvecs[n,:,i]
     avg_eigenvecs=np.average(all_eigenvecs,axis=0) #take average of all eigenvecs
+    for n in range(datlength): #probably a faster way to do than nested for loops
+        for i in range(3):
+            if np.dot(avg_eigenvecs[:,i],all_eigenvecs[n,:,i]) < 0:
+                all_eigenvecs[n,:,i]=-1*all_eigenvecs[n,:,i]    
+    avg_eigenvecs=np.average(all_eigenvecs,axis=0) #take average of all eigenvecs
+    if avg_eigenvecs[1,2] < 0: #avg invariant dir. aligned with negative y GSE, don't want that
+        avg_eigenvecs=avg_eigenvecs*-1
+        all_eigenvecs=all_eigenvecs*-1
     std_eigenvecs=np.std(all_eigenvecs,axis=0)
     unit_eigenvecs=avg_eigenvecs/np.linalg.norm(avg_eigenvecs,axis=0)
     unit_std_eigenvecs=std_eigenvecs/np.linalg.norm(avg_eigenvecs,axis=0)
@@ -495,4 +503,41 @@ def STD_avged(b_fields,times,struct_idxs,spacecrafts_coords,avg_mdd_eigenvals,
             normal_veloc[n,:]= avg_mdd_eigenvecs @ veloc[n,:]
     
     return normal_veloc,optimal
+
+def guide_field(b_fields):
+    '''
+    Determines the guide field for push current sheets
+    Inputs:
+         b_fields- a dictionary with four values, each consisting of an array
+            of magnetic field vectors from a particular spacecraft of form 
+            (datlength,3). Contains info only from the crossing itself.
+    Outputs:
+        gf_tot- the calculated guide field in nT
+        gf_std- the standard deviation of the guide fields calculated from the
+            four different satellites
+    '''
+    gf_mag_values=[]
+    
+    for b in b_fields.values(): #calculate potential guide fields for each spacecraft
+        pos_mask=b[:,2] > 0 #where bz is positive
+        pos_b_avg=np.average(b[pos_mask,:],axis=0)
+        pos_b_unit=pos_b_avg/np.linalg.norm(pos_b_avg)
+        neg_mask=b[:,2] < 0 #where bz is negative
+        neg_b_avg=np.average(b[neg_mask,:],axis=0)
+        neg_b_unit=neg_b_avg/np.linalg.norm(neg_b_avg)
+        gf_dir_unit=(pos_b_unit+neg_b_unit)/np.linalg.norm(pos_b_unit+neg_b_unit)
+        if gf_dir_unit[1] <0: #anti-aligned with Y GSE, don't want that
+            gf_dir_unit=gf_dir_unit*-1
+        #calculate the magnitude of the components 
+        gf_1=np.dot(pos_b_avg,gf_dir_unit)
+        gf_2=np.dot(neg_b_avg,gf_dir_unit)
+        #calculate the average guide field
+        gf=(gf_1+gf_2)/2
+        gf_mag_values.append([gf])
+        
+    gfs=np.concatenate(gf_mag_values)
+    gf_tot=np.average(gfs)
+    gf_std=np.std(gfs)
+    
+    return gf_tot,gf_std
     
