@@ -161,13 +161,13 @@ time_reg_jcurl=np.array([])
 
 #variables for global J dot E info
 cadence=1/128 #time cadence for MMS burst data
-time_tot={} #at B cadence
+time_tot=0 #at B cadence, average over all 4 satellites
 time_structs=0 #at B cadence
 time_plasmoid=0
 time_pullcs=0
 time_pushcs=0
-j_dot_E_para_sum={}
-j_dot_E_perp_sum={}
+j_dot_E_para_sum=0 #average over all 4 satellites
+j_dot_E_perp_sum=0 #average over all 4 satellites
 j_dot_E_struct_para_sum=0
 j_dot_E_struct_perp_sum=0
 j_dot_E_plasmoid_para=0
@@ -304,7 +304,7 @@ for M in MMS:
                                                ['mms'+M+'_edp_epoch_brst_l2',
                                                'mms'+M+'_edp_dce_gse_brst_l2'])
         tmp_efield_interp=interp.interp1d(TT_time_edp_tmp,e_field_tmp,axis=0,
-                                          bounds_error=False, fill_value=0.) #interpolate electron  pressure data
+                                          bounds_error=False, fill_value=0.) #interpolate electric field data
         efield_btime_tmp=tmp_efield_interp(TT_time_tmp) #interpolate e-field to b-field timestamps
         e_field[M]=np.concatenate((e_field[M],efield_btime_tmp))
     #populate other necessary data dictionaries
@@ -320,10 +320,10 @@ for M in MMS:
     ve[M]=tmp_ve_spline(TT_time_b[M]) #interpolate electron veloc to b-field timestamps    
     
     #populate j dot E total-related variables
-    time_tot[M]=len(time_reg_b[M])*cadence #at B cadence
+    time_tot+=len(time_reg_b[M])*cadence/len(MMS) #at B cadence
     tmp,j_d_E_para,j_d_E_perp=pp.j_dot_e(j_curl,e_field[M],b_field[M])
-    j_dot_E_para_sum[M]=sum(j_d_E_para)
-    j_dot_E_perp_sum[M]=sum(j_d_E_perp)
+    j_dot_E_para_sum+=sum(j_d_E_para)/len(MMS)
+    j_dot_E_perp_sum+=sum(j_d_E_perp)/len(MMS)
 
 #find potential structure candidates from MMS 1 (data smoothed a small amount)
 bz_M1=ma.smoothing(b_field[MMS[0]][:,2],fixed=True,fixedwidth=6)
@@ -546,7 +546,6 @@ for i in range(len(crossing_indices_M1)):
         type_str=type_str+" with some smaller-dimensional qualities"
     str_avg_core_field=f"{avg_core_field:.2f}"
 
-
     #do STD analysis
     velocs,optimal=msc.STD(b_field_cut_sync,time_cut_b,cut_struct_idxs[i],
                                rad_struct_sync,all_eigenvals,all_eigenvecs,
@@ -658,7 +657,7 @@ for i in range(len(crossing_indices_M1)):
     if type_flag == 2:
         time_pushcs+=len(time_struct_b)*cadence
         j_dot_E_pushcs_para+=sum(jE_para_struct)
-        j_dot_E_pushcs_perp+=sum(jE_perp_struct)
+        j_dot_E_pushcs_perp+=sum(jE_perp_struct)        
         
     if(REPLOT):
         #structure information for plot
@@ -911,74 +910,88 @@ mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
 mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
                                  'j_dot_E_perpendicular',
                                  scatters_out_directory,structure_kinds)
+''' make scatter plot of the j dot E vs core field ''' 
+mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
+                                 'j_dot_E_parallel',scatters_out_directory,
+                                 structure_kinds)
+mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
+                                 'j_dot_E_perpendicular',
+                                 scatters_out_directory,structure_kinds)
+''' make scatter plot of the j dot E vs guide field ''' 
+mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
+                                 'j_dot_E_parallel',scatters_out_directory,
+                                 structure_kinds)
+mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
+                                 'j_dot_E_perpendicular',
+                                 scatters_out_directory,structure_kinds)
 
 ''' J dot E INFO '''
-for M in MMS:
-    #calculate percentages for overall structures and for plasmoids, pull cs, push cs specifically
-    percent_time=time_structs/time_tot[M]*100
-    str_percent_time=f"{percent_time:.1f}"
-    percent_jE_para=j_dot_E_struct_para_sum/j_dot_E_para_sum[M]*100
-    str_percent_jE_para=f"{percent_jE_para:.1f}"
-    percent_jE_perp=j_dot_E_struct_perp_sum/j_dot_E_perp_sum[M]*100
-    str_percent_jE_perp=f"{percent_jE_perp:.1f}"
-    
-    percent_time_plas=time_plasmoid/time_tot[M]*100
-    str_percent_time_plas=f"{percent_time_plas:.1f}"
-    percent_jE_para_plas=j_dot_E_plasmoid_para/j_dot_E_para_sum[M]*100
-    str_percent_jE_para_plas=f"{percent_jE_para_plas:.1f}"
-    percent_jE_perp_plas=j_dot_E_plasmoid_perp/j_dot_E_perp_sum[M]*100
-    str_percent_jE_perp_plas=f"{percent_jE_perp_plas:.1f}"
 
-    percent_time_pull=time_pullcs/time_tot[M]*100
-    str_percent_time_pull=f"{percent_time_pull:.1f}"
-    percent_jE_para_pull=j_dot_E_pullcs_para/j_dot_E_para_sum[M]*100
-    str_percent_jE_para_pull=f"{percent_jE_para_pull:.1f}"
-    percent_jE_perp_pull=j_dot_E_pullcs_perp/j_dot_E_perp_sum[M]*100
-    str_percent_jE_perp_pull=f"{percent_jE_perp_pull:.1f}"
-    
-    percent_time_push=time_pushcs/time_tot[M]*100
-    str_percent_time_push=f"{percent_time_push:.1f}"
-    percent_jE_para_push=j_dot_E_pushcs_para/j_dot_E_para_sum[M]*100
-    str_percent_jE_para_push=f"{percent_jE_para_push:.1f}"
-    percent_jE_perp_push=j_dot_E_pushcs_perp/j_dot_E_perp_sum[M]*100
-    str_percent_jE_perp_push=f"{percent_jE_perp_push:.1f}"
-    
-    percent_jE_para_perp=j_dot_E_para_sum[M]/(j_dot_E_para_sum[M]+ \
-                                             j_dot_E_perp_sum[M])*100 #percentage of j dot E from parallel
-    str_percent_jE_para_perp = f"{percent_jE_para_perp:.1f}"               
-    #print out all the info                                     
-    print('For MMS '+str(M)+':')
-    
-    print(r'Percentage of total time taken up by identified structures: {}%' \
-                                                     .format(str_percent_time))
-    print(r'Percentage of J dot E parallel from structures: {}%' \
-                                                  .format(str_percent_jE_para))
-    print(r'Percentage of J dot E perp from structures: {}%' \
-                                                  .format(str_percent_jE_perp))
-    
-    print(r'Percentage of total time taken up by plasmoids: {}%' \
-                                              .format(str_percent_time_plas))
-    print(r'Percentage of J dot E parallel from plasmoids: {}%' \
-                                             .format(str_percent_jE_para_plas))
-    print(r'Percentage of J dot E perp from plasmoids: {}%' \
-                                             .format(str_percent_jE_perp_plas))
-    
-    print(r'Percentage of total time taken up by pull current sheets: {}%' \
-                                              .format(str_percent_time_pull))
-    print(r'Percentage of J dot E parallel from pull current sheets: {}%' \
-                                             .format(str_percent_jE_para_pull))
-    print(r'Percentage of J dot E perp from pull current sheets: {}%' \
-                                             .format(str_percent_jE_perp_pull))
-    
-    print(r'Percentage of total time taken up by push current sheets: {}%' \
-                                              .format(str_percent_time_push))
-    print(r'Percentage of J dot E parallel from push current sheets: {}%' \
-                                             .format(str_percent_jE_para_push))
-    print(r'Percentage of J dot E perp from push current sheets: {}%' \
-                                             .format(str_percent_jE_perp_push))
-    
-    print(r'Percentage ofJ dot E parallel contribution to J dot E:'
-          ' {}%'.format(str_percent_jE_para_perp))
+#calculate percentages for overall structures and for plasmoids, pull cs, push cs specifically
+percent_time=time_structs/time_tot*100
+str_percent_time=f"{percent_time:.1f}"
+percent_jE_para=j_dot_E_struct_para_sum/j_dot_E_para_sum*100
+str_percent_jE_para=f"{percent_jE_para:.1f}"
+percent_jE_perp=j_dot_E_struct_perp_sum/j_dot_E_perp_sum*100
+str_percent_jE_perp=f"{percent_jE_perp:.1f}"
+
+percent_time_plas=time_plasmoid/time_tot*100
+str_percent_time_plas=f"{percent_time_plas:.1f}"
+percent_jE_para_plas=j_dot_E_plasmoid_para/j_dot_E_para_sum*100
+str_percent_jE_para_plas=f"{percent_jE_para_plas:.1f}"
+percent_jE_perp_plas=j_dot_E_plasmoid_perp/j_dot_E_perp_sum*100
+str_percent_jE_perp_plas=f"{percent_jE_perp_plas:.1f}"
+
+percent_time_pull=time_pullcs/time_tot*100
+str_percent_time_pull=f"{percent_time_pull:.1f}"
+percent_jE_para_pull=j_dot_E_pullcs_para/j_dot_E_para_sum*100
+str_percent_jE_para_pull=f"{percent_jE_para_pull:.1f}"
+percent_jE_perp_pull=j_dot_E_pullcs_perp/j_dot_E_perp_sum*100
+str_percent_jE_perp_pull=f"{percent_jE_perp_pull:.1f}"
+
+percent_time_push=time_pushcs/time_tot*100
+str_percent_time_push=f"{percent_time_push:.1f}"
+percent_jE_para_push=j_dot_E_pushcs_para/j_dot_E_para_sum*100
+str_percent_jE_para_push=f"{percent_jE_para_push:.1f}"
+percent_jE_perp_push=j_dot_E_pushcs_perp/j_dot_E_perp_sum*100
+str_percent_jE_perp_push=f"{percent_jE_perp_push:.1f}"
+
+percent_jE_para_perp=j_dot_E_para_sum/(j_dot_E_para_sum+ \
+                                         j_dot_E_perp_sum)*100 #percentage of j dot E from parallel
+str_percent_jE_para_perp = f"{percent_jE_para_perp:.1f}"               
+#print out all the info                                     
+print('On average:')
+
+print(r'Percentage of total time taken up by identified structures: {}%' \
+                                                 .format(str_percent_time))
+print(r'Percentage of J dot E parallel from structures: {}%' \
+                                              .format(str_percent_jE_para))
+print(r'Percentage of J dot E perp from structures: {}%' \
+                                              .format(str_percent_jE_perp))
+
+print(r'Percentage of total time taken up by plasmoids: {}%' \
+                                          .format(str_percent_time_plas))
+print(r'Percentage of J dot E parallel from plasmoids: {}%' \
+                                         .format(str_percent_jE_para_plas))
+print(r'Percentage of J dot E perp from plasmoids: {}%' \
+                                         .format(str_percent_jE_perp_plas))
+
+print(r'Percentage of total time taken up by pull current sheets: {}%' \
+                                          .format(str_percent_time_pull))
+print(r'Percentage of J dot E parallel from pull current sheets: {}%' \
+                                         .format(str_percent_jE_para_pull))
+print(r'Percentage of J dot E perp from pull current sheets: {}%' \
+                                         .format(str_percent_jE_perp_pull))
+
+print(r'Percentage of total time taken up by push current sheets: {}%' \
+                                          .format(str_percent_time_push))
+print(r'Percentage of J dot E parallel from push current sheets: {}%' \
+                                         .format(str_percent_jE_para_push))
+print(r'Percentage of J dot E perp from push current sheets: {}%' \
+                                         .format(str_percent_jE_perp_push))
+
+print(r'Percentage of J dot E parallel contribution to J dot E:'
+      ' {}%'.format(str_percent_jE_para_perp))
     
 percent_jE_para_perp_struct=j_dot_E_struct_para_sum/(j_dot_E_struct_para_sum+ \
                                                 j_dot_E_struct_perp_sum)*100 
@@ -993,7 +1006,6 @@ percent_jE_para_perp_push=j_dot_E_pushcs_para/(j_dot_E_pushcs_para+ \
                                                 j_dot_E_pushcs_perp)*100 
 str_percent_jE_para_perp_push = f"{percent_jE_para_perp_push:.1f}"
                                                      
-print('Overall:')
 print(r'Percentage of J dot E parallel contribution to J dot E within the '
       'structures: {}%'.format(percent_jE_para_perp_struct))
 print(r'Percentage of J dot E parallel contribution to J dot E within the '
@@ -1003,6 +1015,25 @@ print(r'Percentage of J dot E parallel contribution to J dot E within the '
 print(r'Percentage of J dot E parallel contribution to J dot E within the '
       'push current sheets: {}%'.format(percent_jE_para_perp_push))
 
+#make pie chart of the J dot E breakdown
+j_dot_E_out_para_sum=j_dot_E_para_sum - j_dot_E_struct_para_sum
+j_dot_E_out_perp_sum=j_dot_E_perp_sum - j_dot_E_struct_perp_sum
+
+fig_pie,ax_pie=plt.subplots()
+mmsp.pie_plotter(ax_pie,[j_dot_E_out_para_sum,j_dot_E_struct_para_sum,
+                  j_dot_E_out_perp_sum,j_dot_E_struct_perp_sum],
+                 [r"$J_{\parallel} E_{\parallel}$ outside structures",
+                  r"$J_{\parallel} E_{\parallel}$ from structures",
+                  r"$J_{\perp} \cdot E_{\perp}$ outside structures",
+                  r"$J_{\perp} \cdot E_{\perp}$ from structures"],
+                  r"Breakdown of $J \cdot E$ over the entire turbulent "
+                  "reconnection region")
+
+fig_pie.savefig(os.path.join(statistics_out_directory,
+                             "j_dot_e_pie"+".png"),bbox_inches='tight')
+plt.close(fig='all')
+
+print(MMS_structure_counts)
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start))) 

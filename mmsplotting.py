@@ -62,6 +62,8 @@ def size_fitter(x,y,fitfn,guess):
         x_smooth- the fit independent variables
         y_smooth- the fit dependent variables
         popt- the fit parameters
+        errs- the standard deviations of the fit parameters
+        errbars- error bars for each x_for_fit point (bundled with the x and y points at which they exist)
     '''
     #section the data for the fit- want the part above the max fitted for size
     max_idx=np.argmax(y)
@@ -74,7 +76,33 @@ def size_fitter(x,y,fitfn,guess):
     y_smooth=fitfn(x_smooth,*popt)
     errs=np.sqrt(np.diagonal(pcov)) #returns standard deviations
     
-    return x_smooth,y_smooth,popt,errs
+    errbars=errbar_maker(x_for_fit,fitfn,popt,errs)
+    y_for_errs=fitfn(x_for_fit,*popt)
+    
+    return x_smooth,y_smooth,popt,errs,[x_for_fit,y_for_errs,errbars]
+
+def errbar_maker(x,fitfn,params,param_errs):
+    '''
+    Creates error bars for the histogram fits
+    Inputs:
+        x- the x locations of the center of each histogram bar
+        fitfn- the fitting function used
+        params- the parameters for fitting function returned by curve_fit
+        param_errs- the standard deviations on the parameters returned by curve_fit
+    '''
+    min_params=params-param_errs
+    max_params=params+param_errs
+    
+    fit_val=fitfn(x,params[0],params[1])
+    val_min=fitfn(x,min_params[0],min_params[1])    
+    val_max=fitfn(x,max_params[0],max_params[1])
+    errbar_min=fit_val-val_min
+    errbar_max=val_max-fit_val
+    
+    errbars=np.row_stack((errbar_min,errbar_max))
+    
+    return errbars
+    
     
     
 ###### DIRECTORY MANAGEMENT FNS ###############################################
@@ -128,7 +156,7 @@ def textify(string):
 
 ##### PLOTTING FNS ############################################################
 def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
-                  yerrors=None,square=False,ylims=None):
+                  yerrors=None,square=False,ylims=None,colorval=None):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -150,10 +178,11 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
         ylims- list containing the plotting limits for the y axis
             lims[0] is the minimum y-value 
             lims[1] is the maximum y-value
+        colorval- for specifying color, default None
     Outputs:
         out- the ax.plot instance used
     '''
-    out = ax.plot(data1, data2,label=legend)
+    out = ax.plot(data1, data2,label=legend,color=colorval)
     if not (yerrors is None): #set legend, if it exists
         ax.errorbar(data1,data2,yerr=yerrors,fmt='.',capsize=3)
     if not (labels is None): #set labels, if they exist
@@ -336,6 +365,25 @@ def hist_bins(limits,n_bins):
     
     return bins
 
+def ebar_plotter(ax,data1,data2,errbars,colorval):
+    '''
+    function to plot error bars only on specific points
+    useful if there are only errors on some of the points
+    Inputs:
+        ax- the axis to use
+        data1- the x-axis variables
+        data2- the y-axis variables
+        errbars- array of errors, in proper matplotlib format (see docuentation)
+        colorval- matplotlib color arg for the lines
+    Outputs:
+        out- the ax.errorbar instance used
+    '''
+    
+    out=ax.errorbar(data1,data2,yerr=errbars,fmt='.',capsize=3,ecolor=colorval,
+                    color=colorval)
+    
+    return out
+
 def scatter_plotter(ax,data1,data2,labels,marker_type=None,legend=None):
     '''
     Makes scatter plots using matplotlib objects
@@ -405,6 +453,25 @@ def bar_charter(ax,data,labels):
     
     return data_bars
 
+def pie_plotter(ax,amounts,labels,title):
+    '''
+    Makes a pie chart of the inputs
+    Inputs:
+        ax- the matplotlib axes on which to plot the pie
+        amounts- a list or array of the various amounts for the pie chart
+        labels- the labels for each part of the pie, in the same order as amounts
+        title- the title of the plot
+        **kwargs- dictionary of keyword arguments for the pie chart
+    Outputs:
+        out- the output of the plot
+    '''
+    
+    wedges, texts= ax.pie(amounts)
+    ax.legend(wedges,labels)
+    ax.set_title(title)
+    
+    return wedges
+    
 def structure_hist_maker(data,attr,out,bins_num,structure_key,
                          log=False):
     '''
@@ -488,10 +555,11 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
                                       for i in range(len(bins)-1)])
                 pwr_guess=[max(arr),-1.]
                 exp_guess=[max(arr),0.005]
-                x_exp,y_exp,params_exp,exp_errs=size_fitter(bin_centers,arr,
+                x_exp,y_exp,params_exp,exp_errs,exp_ebars=size_fitter(bin_centers,
+                                                                      arr,
                                                             fitfn_exp,
                                                             exp_guess)
-                x_pwr,y_pwr,params_pwr,pwr_errs=size_fitter(bin_centers,arr,
+                x_pwr,y_pwr,params_pwr,pwr_errs,pwr_ebars=size_fitter(bin_centers,arr,
                                                             fitfn_pwr,
                                                             pwr_guess)
                 basic_plotter(axs[i],x_exp,y_exp,
@@ -725,22 +793,29 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
                                   for i in range(len(bins)-1)])
             pwr_guess=[max(arr),-1.]
             exp_guess=[max(arr),0.005]
-            x_exp,y_exp,params_exp,exp_errs=size_fitter(bin_centers,arr,
+            x_exp,y_exp,params_exp,exp_errs,exp_ebars=size_fitter(bin_centers,arr,
                                                         fitfn_exp,exp_guess)
-            x_pwr,y_pwr,params_pwr,pwr_errs=size_fitter(bin_centers,arr,
+            x_pwr,y_pwr,params_pwr,pwr_errs,pwr_ebars=size_fitter(bin_centers,arr,
                                                         fitfn_pwr,pwr_guess)
             basic_plotter(ax,x_exp,y_exp,
                           legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$' \
                           .format(f"{params_exp[0]:.2f}",
                                      f"{exp_errs[0]:.2f}",
                                      f"{params_exp[1]:.4f}",
-                                     f"{exp_errs[1]:.4f}"))
+                                     f"{exp_errs[1]:.4f}"), colorval="blue")
             basic_plotter(ax,x_pwr,y_pwr,
                           legend='Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$' \
                           .format(f"{params_pwr[0]:.2f}",
                                      f"{pwr_errs[0]:.2f}",
                                      f"{params_pwr[1]:.2f}",
-                                     f"{pwr_errs[1]:.2f}")) 
+                                     f"{pwr_errs[1]:.2f}"), colorval="red") 
+            
+            ebar_plotter(ax,exp_ebars[0],exp_ebars[1],exp_ebars[2],
+                         colorval="blue")
+            ebar_plotter(ax,pwr_ebars[0],pwr_ebars[1],pwr_ebars[2],
+                         colorval="red")
+            
+
         if log:
             structure_type+='_log'
             
