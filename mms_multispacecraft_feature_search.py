@@ -66,7 +66,7 @@ REPLOT=0 #chooses whether to regenerate the plots or not
 class Structure:
     
     #initializer
-    def __init__(self,kind,dt,size,size_e,size_p,cf,gf,vel,vel_e,vel_p,dim,
+    def __init__(self,kind,dt,size,size_e,size_p,cf,gf,vel,vel_pm,vel_e,vel_p,dim,
                  je_para,je_perp):
         self.kind=kind
         self.duration=dt
@@ -76,6 +76,7 @@ class Structure:
         self.core_field=cf
         self.guide_field=gf
         self.normal_speed=vel
+        self.signed_normal_speed=vel_pm
         self.electron_normalized_speed=vel_e
         self.ion_normalized_speed=vel_p
         self.dimensionality=dim
@@ -90,6 +91,7 @@ class Structure:
                   'core_field':'core fields',
                   'guide_field':'guide fields',
                   'normal_speed':'normal speeds',
+                  'signed_normal_speed':'signed normal speeds',
                   'electron_normalized_speed':'electron-normalized speeds',
                   'ion_normalized_speed':'ion-normalized speeds',
                   'duration':'durations',
@@ -106,6 +108,7 @@ class Structure:
                 'core_field':'nT',
                 'guide_field':'nT',
                 'normal_speed':'km/s',
+                'signed_normal_speed':'km/s',
                 'electron_normalized_speed':'unitless',
                 'ion_normalized_speed':'unitless',   
                 'duration':'s',
@@ -556,7 +559,8 @@ for i in range(len(crossing_indices_M1)):
 #                               rad_struct_sync,avg_eigenvals,avg_eigenvecs,
 #                               dims_struct,min_crossing_height)
     vtot=np.linalg.norm(velocs,axis=1)
-    avg_vtot=np.average(vtot)    
+    avg_vtot=np.average(vtot) 
+    sgned_avg_vtot=np.sign(np.average(velocs[:,0]))*avg_vtot #positive if average vx positive
     
     #calculate other properties of the structure (kind, size, etc.)
     #determine error-flags for des and dis data
@@ -642,9 +646,9 @@ for i in range(len(crossing_indices_M1)):
                                                 crossing_size,crossing_size_de,
                                                 crossing_size_dp,
                                                 avg_core_field,gf,avg_vtot,
-                                                avg_vtot_e,avg_vtot_p,
-                                                type_str,jE_para_avg,
-                                                jE_perp_avg))
+                                                sgned_avg_vtot, avg_vtot_e,
+                                                avg_vtot_p,type_str,
+                                                jE_para_avg,jE_perp_avg))
     #determine the j dot E breakdown for each 'real' structure
     if type_flag == 0:
         time_plasmoid+=len(time_struct_b)*cadence
@@ -814,7 +818,7 @@ for i in range(len(crossing_indices_M1)):
         plt.close(fig="all")                                  
 
 """ STATISTICAL PART """
-''' make bar chart of the different types of structures '''
+#make bar chart of the different types of structures
 fig_bar,ax_bar=plt.subplots()
 mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
                                          'Type of structure',
@@ -822,18 +826,18 @@ mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
 fig_bar.savefig(os.path.join(statistics_out_directory,
                              "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')
-''' make histograms of the x-lengths of all structures''' 
+#make histograms of the x-lengths of all structures
 structure_kinds=type_dict.values()
 mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
-                          structure_kinds)   
+                          structure_kinds)    
 mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,
                           nbins_small,structure_kinds, log=True)
-''' make histograms of the time durations of all structures'''
+#make histograms of the time durations of all structures
 mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
                               nbins,structure_kinds)   
 mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
                               nbins_small,structure_kinds, log=True)
-''' make histograms of the normalized x-lengths of all structures'''
+#make histograms of the normalized x-lengths of all structures
 mmsp.msc_structure_hist_maker(MMS_structures,"electron_normalized_size",
                               hists_out_directory,nbins,structure_kinds)  
 mmsp.msc_structure_hist_maker(MMS_structures,"ion_normalized_size",
@@ -844,19 +848,19 @@ mmsp.msc_structure_hist_maker(MMS_structures,"electron_normalized_size",
 mmsp.msc_structure_hist_maker(MMS_structures,"ion_normalized_size",
                               hists_out_directory,nbins_small,structure_kinds,
                               log=True)
-''' make histograms of the guide field strengths of all structures'''
+#make histograms of the guide field strengths of all structures
 mmsp.msc_structure_hist_maker(MMS_structures,'guide_field',hists_out_directory,
                           nbins_small,structure_kinds)
-''' make histograms of the core field strengths of all structures'''
+#make histograms of the core field strengths of all structures
 mmsp.msc_structure_hist_maker(MMS_structures,'core_field',hists_out_directory,
                           nbins_small,structure_kinds)      
-''' make histograms of the velocities of all structures ''' 
+# make histograms of the velocities of all structures
 mmsp.msc_structure_hist_maker(MMS_structures,'normal_speed',
                               hists_out_directory,nbins,structure_kinds) 
 mmsp.msc_structure_hist_maker(MMS_structures,'normal_speed',
                               hists_out_directory,nbins_small,structure_kinds,
                               log=True) 
-''' make histograms of the normalized velocities of all structures ''' 
+#make histograms of the normalized velocities of all structures
 mmsp.msc_structure_hist_maker(MMS_structures,'electron_normalized_speed',
                               hists_out_directory,nbins,structure_kinds)
 mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
@@ -867,63 +871,63 @@ mmsp.msc_structure_hist_maker(MMS_structures,'electron_normalized_speed',
 mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
                               hists_out_directory,nbins_small,structure_kinds,
                               log=True)
-''' make histograms of the j dot E of all structures '''
+#make histograms of the j dot E of all structures
 mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_parallel',
                               hists_out_directory,nbins,structure_kinds)
 mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_perpendicular',
                               hists_out_directory,nbins,structure_kinds)
-''' make scatter plot of guide field strength vs structure size '''
-mmsp.msc_structure_scatter_maker(MMS_structures,'size','guide_field',
-                                 scatters_out_directory,structure_kinds)  
-''' make scatter plot of core field strength vs structure size '''
-mmsp.msc_structure_scatter_maker(MMS_structures,'size','core_field',
-                                 scatters_out_directory,structure_kinds) 
-''' make scatter plot of normal speed vs structure size '''
-mmsp.msc_structure_scatter_maker(MMS_structures,'size','normal_speed',
+##make scatter plot of guide field strength vs structure size 
+#mmsp.msc_structure_scatter_maker(MMS_structures,'size','guide_field',
+#                                 scatters_out_directory,structure_kinds)  
+##make scatter plot of core field strength vs structure size
+#mmsp.msc_structure_scatter_maker(MMS_structures,'size','core_field',
+#                                 scatters_out_directory,structure_kinds) 
+# make scatter plot of signed normal speed vs structure size 
+mmsp.msc_structure_scatter_maker(MMS_structures,'size','signed_normal_speed',
                                  scatters_out_directory,structure_kinds)
-''' make scatter plot of normal speed vs structure duration '''
-mmsp.msc_structure_scatter_maker(MMS_structures,'duration','normal_speed',
-                                 scatters_out_directory,structure_kinds)
-''' make scatter plot of normalized speeds vs normalized structure size '''
-mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
-                                 'electron_normalized_speed',
-                                 scatters_out_directory,structure_kinds)
-mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
-                                 'ion_normalized_speed',
-                                 scatters_out_directory,structure_kinds)
-''' make scatter plot comparing ion-normalized and electron-normalized attributes'''
-mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
-                                 'ion_normalized_size',
-                                 scatters_out_directory,structure_kinds)
-mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_speed',
-                                 'ion_normalized_speed',
-                                 scatters_out_directory,structure_kinds)
-''' make scatter plot of the j dot E vs structure size '''   
-mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_parallel',
-                                 scatters_out_directory,structure_kinds)
-mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_perpendicular',
-                                 scatters_out_directory,structure_kinds)
-''' make scatter plot of the j dot E vs ion-normalized structure size ''' 
-mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
-                                 'j_dot_E_parallel',scatters_out_directory,
-                                 structure_kinds)
-mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
-                                 'j_dot_E_perpendicular',
-                                 scatters_out_directory,structure_kinds)
-''' make scatter plot of the j dot E vs core field ''' 
-mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
-                                 'j_dot_E_parallel',scatters_out_directory,
-                                 structure_kinds)
-mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
-                                 'j_dot_E_perpendicular',
-                                 scatters_out_directory,structure_kinds)
-''' make scatter plot of the j dot E vs guide field ''' 
-mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
-                                 'j_dot_E_parallel',scatters_out_directory,
-                                 structure_kinds)
-mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
-                                 'j_dot_E_perpendicular',
-                                 scatters_out_directory,structure_kinds)
+##make scatter plot of normal speed vs structure duration
+#mmsp.msc_structure_scatter_maker(MMS_structures,'duration','normal_speed',
+#                                 scatters_out_directory,structure_kinds)
+## make scatter plot of normalized speeds vs normalized structure size
+#mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
+#                                 'electron_normalized_speed',
+#                                 scatters_out_directory,structure_kinds)
+#mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+#                                 'ion_normalized_speed',
+#                                 scatters_out_directory,structure_kinds)
+##make scatter plot comparing ion-normalized and electron-normalized attributes
+#mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
+#                                 'ion_normalized_size',
+#                                 scatters_out_directory,structure_kinds)
+#mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_speed',
+#                                 'ion_normalized_speed',
+#                                 scatters_out_directory,structure_kinds)
+## make scatter plot of the j dot E vs structure size 
+#mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_parallel',
+#                                 scatters_out_directory,structure_kinds)
+#mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_perpendicular',
+#                                 scatters_out_directory,structure_kinds)
+## make scatter plot of the j dot E vs ion-normalized structure size 
+#mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+#                                 'j_dot_E_parallel',scatters_out_directory,
+#                                 structure_kinds)
+#mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+#                                 'j_dot_E_perpendicular',
+#                                 scatters_out_directory,structure_kinds)
+##make scatter plot of the j dot E vs core field 
+#mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
+#                                 'j_dot_E_parallel',scatters_out_directory,
+#                                 structure_kinds)
+#mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
+#                                 'j_dot_E_perpendicular',
+#                                 scatters_out_directory,structure_kinds)
+## make scatter plot of the j dot E vs guide field 
+#mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
+#                                 'j_dot_E_parallel',scatters_out_directory,
+#                                 structure_kinds)
+#mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
+#                                 'j_dot_E_perpendicular',
+#                                 scatters_out_directory,structure_kinds)
 
 ''' J dot E INFO '''
 

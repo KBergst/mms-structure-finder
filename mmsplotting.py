@@ -16,6 +16,9 @@ import os
 import re #for url-ifying strings
 import textwrap #for fixing too-long labels that overlap
 from scipy.optimize import curve_fit #for fitting histograms
+from scipy.stats import chisquare #for testing goodness of fit
+import scipy.stats as stats
+import statsmodels.api as sm
 
 ##### FITTING FNS #############################################################
 def fitfn_linear(x,a,b):
@@ -50,7 +53,7 @@ def fitfn_pwr(x,a,b):
     
     return pwr_fn
 
-def size_fitter(x,y,fitfn,guess):
+def size_fitter(x,y,fitfn,guess,yerrs=None):
     '''
     wrapper for fitting the size histograms 
     Inputs:
@@ -58,6 +61,7 @@ def size_fitter(x,y,fitfn,guess):
         y- the dependent variable data to be fit (same dimension as x)
         fitfn- the fitting function to be used
         guess- guess for the fit parameters (depend on the fitting function used)
+        yerrs- error on the y variables. Default None
     Outputs:
         x_smooth- the fit independent variables
         y_smooth- the fit dependent variables
@@ -69,8 +73,9 @@ def size_fitter(x,y,fitfn,guess):
     max_idx=np.argmax(y)
     x_for_fit=x[max_idx:]
     y_for_fit=y[max_idx:]
+    yerrs_for_fit=yerrs[max_idx:]
     popt, pcov = curve_fit(fitfn,xdata=x_for_fit,ydata=y_for_fit,
-                           p0=guess)
+                           p0=guess,sigma=yerrs_for_fit)
     fit_bdy=[x_for_fit[0],x_for_fit[-1]]
     x_smooth=np.linspace(fit_bdy[0],fit_bdy[1],num=1000)
     y_smooth=fitfn(x_smooth,*popt)
@@ -78,6 +83,9 @@ def size_fitter(x,y,fitfn,guess):
     
     errbars=errbar_maker(x_for_fit,fitfn,popt,errs)
     y_for_errs=fitfn(x_for_fit,*popt)
+#    y_for_c2 = y_for_fit[0:min(5,y_for_fit.size)]
+#    yexp_for_c2 = y_for_errs[0:y_for_c2.size]
+#    c2,p=chisquare(y_for_c2,yexp_for_c2)
     
     return x_smooth,y_smooth,popt,errs,[x_for_fit,y_for_errs,errbars]
 
@@ -102,7 +110,21 @@ def errbar_maker(x,fitfn,params,param_errs):
     errbars=np.row_stack((errbar_min,errbar_max))
     
     return errbars
+
+### truncated power law distribution ################
+class powerlw(stats.rv_continuous):
+    "truncated power law distribution - has lower and upper cutoffs (to match data better)"
     
+    def _pdf(self,x,p):
+        a=self.a
+        b=self.b
+        return (1-p)/(b**(1-p)-a**(1-p))*x**(-1*p)
+    
+    def _cdf(self,x,p):
+        a=self.a
+        b=self.b
+        return (x**(1-p)-a**(1-p))/(b**(1-p)-a**(1-p))
+        
     
     
 ###### DIRECTORY MANAGEMENT FNS ###############################################
@@ -305,6 +327,7 @@ def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
         logscale- True if want log, False if not, default is False
     Outputs:
         out- the ax.hist instance used
+        errs- the error bars on the plots
     '''
     
     ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
@@ -325,11 +348,13 @@ def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
                                                   minor_thresholds=(2.,5.)))
         log_bins=log_hist_bins(limits,n_bins)
         out=ax.hist(values,log_bins)
+        errs = hist_errs(ax,out)
     else:
         reg_bins=hist_bins(limits,n_bins)
         out=ax.hist(values,reg_bins)
+        errs = hist_errs(ax,out)
     
-    return out
+    return [out,errs]
 
 def log_hist_bins(limits,n_bins):
     '''
@@ -365,6 +390,30 @@ def hist_bins(limits,n_bins):
     
     return bins
 
+def hist_errs(ax,out):
+    '''
+    Creates standard poisson error bars for a given histogram,
+    Using bin_err=sqrt(bin_size)
+    Inputs:
+        ax- the axes on which to plot the error bars
+        out- the output from the generated histogram. 
+            out[0] the array of values of the histogram bins
+            out[1] the edges of the bins
+    '''
+    errs=[]
+    for i,bar_amt in enumerate(out[0]):
+        min_err = 1
+        top_err = max(min_err,np.sqrt(bar_amt)) #set errors to 1 if nothing in the bar
+        bottom_err=np.sqrt(bar_amt) #bottom error is zero if nothing in bar       
+        errs.append([top_err])
+        errs_point=np.array([bottom_err,top_err])
+        errs_point = errs_point.reshape((2,1))
+        bar_center = (out[1][i+1]+out[1][i])/2
+        ebar_plotter(ax,bar_center,bar_amt,errs_point,colorval='black')
+        
+    errs_arr=np.concatenate(errs)
+    return errs_arr
+
 def ebar_plotter(ax,data1,data2,errbars,colorval):
     '''
     function to plot error bars only on specific points
@@ -373,7 +422,7 @@ def ebar_plotter(ax,data1,data2,errbars,colorval):
         ax- the axis to use
         data1- the x-axis variables
         data2- the y-axis variables
-        errbars- array of errors, in proper matplotlib format (see docuentation)
+        errbars- array of errors, in proper matplotlib format (see documentation)
         colorval- matplotlib color arg for the lines
     Outputs:
         out- the ax.errorbar instance used
@@ -548,20 +597,23 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
         if (attr == 'size' and (structure_type == 'plasmoids' \
                                 or structure_type == 'pull current sheets' \
                                 or structure_type == 'push current sheets')): #do fitting
-            arrays=[item[0] for item in outs]
-            bin_edges=[item[1] for item in outs]
-            for i,(arr,bins) in enumerate(zip(arrays,bin_edges)):
+            arrays=[item[0][1] for item in outs]
+            bin_edges=[item[0][1] for item in outs]
+            yerrs=[item[1] for item in outs]
+            for i,(arr,bins,yerr) in enumerate(zip(arrays,bin_edges,yerrs)):
                 bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
                                       for i in range(len(bins)-1)])
                 pwr_guess=[max(arr),-1.]
                 exp_guess=[max(arr),0.005]
-                x_exp,y_exp,params_exp,exp_errs,exp_ebars=size_fitter(bin_centers,
+                x_exp,y_exp,params_exp,exp_errs,exp_ebars,exp_c2=size_fitter(bin_centers,
                                                                       arr,
                                                             fitfn_exp,
-                                                            exp_guess)
-                x_pwr,y_pwr,params_pwr,pwr_errs,pwr_ebars=size_fitter(bin_centers,arr,
+                                                            exp_guess,
+                                                            yerrs = yerr)
+                x_pwr,y_pwr,params_pwr,pwr_errs,pwr_ebars,pwr_c2=size_fitter(bin_centers,arr,
                                                             fitfn_pwr,
-                                                            pwr_guess)
+                                                            pwr_guess,
+                                                            yerrs = yerr)
                 basic_plotter(axs[i],x_exp,y_exp,
                               legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$' \
                               .format(f"{params_exp[0]:.2f}",
@@ -787,33 +839,56 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
                                     and (structure_type == 'plasmoids' \
                                 or structure_type == 'pull current sheets' \
                                 or structure_type == 'push current sheets')): #do fitting
-            arr=outs[0]
-            bins=outs[1]
+            arr=outs[0][0]
+            bins=outs[0][1]
+            yerr=outs[1]
             bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
                                   for i in range(len(bins)-1)])
             pwr_guess=[max(arr),-1.]
             exp_guess=[max(arr),0.005]
+            
             x_exp,y_exp,params_exp,exp_errs,exp_ebars=size_fitter(bin_centers,arr,
-                                                        fitfn_exp,exp_guess)
+                                                        fitfn_exp,exp_guess,
+                                                        yerrs=yerr)
             x_pwr,y_pwr,params_pwr,pwr_errs,pwr_ebars=size_fitter(bin_centers,arr,
-                                                        fitfn_pwr,pwr_guess)
+                                                        fitfn_pwr,pwr_guess,
+                                                        yerrs=yerr)
+            #do KS testing
+            ks_exp=stats.kstest(total_data,'expon',args=(0.,1/params_exp[1])) #on all data points
+            pwr=powerlw(a=min(total_data),b=max(total_data))
+            ks_pwr=stats.kstest(total_data,pwr.cdf,args=(-1*params_pwr[1],)) #on all data points
+
             basic_plotter(ax,x_exp,y_exp,
-                          legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$' \
-                          .format(f"{params_exp[0]:.2f}",
+                          legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$'
+                          r' KS p-value = {}'.format(f"{params_exp[0]:.2f}",
                                      f"{exp_errs[0]:.2f}",
                                      f"{params_exp[1]:.4f}",
-                                     f"{exp_errs[1]:.4f}"), colorval="blue")
+                                     f"{exp_errs[1]:.4f}",
+                                     f"{ks_exp[1]:.2f}"), colorval="blue")
             basic_plotter(ax,x_pwr,y_pwr,
-                          legend='Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$' \
-                          .format(f"{params_pwr[0]:.2f}",
+                          legend=r'Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$'
+                          r' KS p-value = {}'.format(f"{params_pwr[0]:.2f}",
                                      f"{pwr_errs[0]:.2f}",
                                      f"{params_pwr[1]:.2f}",
-                                     f"{pwr_errs[1]:.2f}"), colorval="red") 
+                                     f"{pwr_errs[1]:.2f}",
+                                     f"{ks_pwr[1]:.2f}"), colorval="red") 
             
-            ebar_plotter(ax,exp_ebars[0],exp_ebars[1],exp_ebars[2],
-                         colorval="blue")
-            ebar_plotter(ax,pwr_ebars[0],pwr_ebars[1],pwr_ebars[2],
-                         colorval="red")
+            #make qqplots and save separately
+            figqq,axqq=plt.subplots(2)
+            sm.qqplot(total_data,'expon',ax=axqq[0],scale=1/params_exp[1],
+                      line='45')
+            sm.qqplot(total_data,pwr,ax=axqq[1],distargs=(-1*params_pwr[1],),
+                      line='45')
+            axqq[0].set(title="Quantile-quantile plot against exponential distribution")
+            axqq[1].set(title="Quantile-quantile plot against power-law distribution")
+            
+            qqsuffix=''
+            if log:
+                qqsuffix='log'
+            figqq.savefig(os.path.join(out,"{}_qqplot{}{}.png".format(attr,urlify(structure_type),
+                                       qqsuffix)),
+                          bbox_inches='tight')
+            
             
 
         if log:
