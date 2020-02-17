@@ -16,7 +16,7 @@ import os
 import re #for url-ifying strings
 import textwrap #for fixing too-long labels that overlap
 from scipy.optimize import curve_fit #for fitting histograms
-from scipy.stats import chisquare #for testing goodness of fit
+import sklearn as sk
 import scipy.stats as stats
 import statsmodels.api as sm
 
@@ -88,6 +88,19 @@ def size_fitter(x,y,fitfn,guess,yerrs=None):
 #    c2,p=chisquare(y_for_c2,yexp_for_c2)
     
     return x_smooth,y_smooth,popt,errs,[x_for_fit,y_for_errs,errbars]
+
+def mle_fitter(y,distfn,**kwargs):
+    '''
+    Finds Maximum Likelihood Estimate for the sample y given distribution function distfn.
+    Leaves space for doing fancy stuff later if desired
+    '''
+    
+    distparams=distfn.fit(y,**kwargs)
+    ysmooth=np.linspace(min(y),max(y),900)
+    pdfsmooth=distfn.pdf(ysmooth,*distparams)
+    
+    return distparams,ysmooth,pdfsmooth
+    
 
 def errbar_maker(x,fitfn,params,param_errs):
     '''
@@ -314,7 +327,7 @@ def line_maker(axes,horiz=None,time=None,edges=None):
 
 def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
     '''
-    Makes histograms, for the statistical processing
+    Makes density histograms, for the statistical processing
     Inputs:
         ax- the mpl Axes object used
         values- numpy array for hist
@@ -833,59 +846,96 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
         plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
         fig,ax=plt.subplots()
         
-        outs=histogram_plotter(ax,total_data,labels,all_limits,
+        (vals,bins,tmp),histerrs=histogram_plotter(ax,total_data,labels,all_limits,
                           n_bins=bins_num,logscale=log)
         if ((attr == 'size' or attr == 'normal_speed') \
                                     and (structure_type == 'plasmoids' \
                                 or structure_type == 'pull current sheets' \
                                 or structure_type == 'push current sheets')): #do fitting
-            arr=outs[0][0]
-            bins=outs[0][1]
-            yerr=outs[1]
-            bin_centers=np.array([0.5 * (bins[i] + bins[i+1]) \
-                                  for i in range(len(bins)-1)])
-            pwr_guess=[max(arr),-1.]
-            exp_guess=[max(arr),0.005]
-            
-            x_exp,y_exp,params_exp,exp_errs,exp_ebars=size_fitter(bin_centers,arr,
-                                                        fitfn_exp,exp_guess,
-                                                        yerrs=yerr)
-            x_pwr,y_pwr,params_pwr,pwr_errs,pwr_ebars=size_fitter(bin_centers,arr,
-                                                        fitfn_pwr,pwr_guess,
-                                                        yerrs=yerr)
-            #do KS testing
-            ks_exp=stats.kstest(total_data,'expon',args=(0.,1/params_exp[1])) #on all data points
+            area=sum(np.diff(bins)*vals)
+#            pwr_guess=[max(arr),-1.]
+#            exp_guess=[max(arr),0.005]
+            #do fitting
             pwr=powerlw(a=min(total_data),b=max(total_data))
-            ks_pwr=stats.kstest(total_data,pwr.cdf,args=(-1*params_pwr[1],)) #on all data points
+            params_exp,x_exp,y_exp=mle_fitter(total_data,stats.expon)
+            params_pwr,x_pwr,y_pwr=mle_fitter(total_data,pwr)
+            #do KS testing
+            ks_exp=stats.kstest(total_data,'expon',args=params_exp) #on all data points
 
-            basic_plotter(ax,x_exp,y_exp,
-                          legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$'
-                          r' KS p-value = {}'.format(f"{params_exp[0]:.2f}",
-                                     f"{exp_errs[0]:.2f}",
-                                     f"{params_exp[1]:.4f}",
-                                     f"{exp_errs[1]:.4f}",
-                                     f"{ks_exp[1]:.2f}"), colorval="blue")
-            basic_plotter(ax,x_pwr,y_pwr,
-                          legend=r'Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$'
-                          r' KS p-value = {}'.format(f"{params_pwr[0]:.2f}",
-                                     f"{pwr_errs[0]:.2f}",
-                                     f"{params_pwr[1]:.2f}",
-                                     f"{pwr_errs[1]:.2f}",
-                                     f"{ks_pwr[1]:.2f}"), colorval="red") 
+            ks_pwr=stats.kstest(total_data,pwr.cdf,args=params_pwr) #on all data points
             
-            #make qqplots and save separately
-            figqq,axqq=plt.subplots(2)
-            sm.qqplot(total_data,'expon',ax=axqq[0],scale=1/params_exp[1],
-                      line='45')
-            sm.qqplot(total_data,pwr,ax=axqq[1],distargs=(-1*params_pwr[1],),
-                      line='45')
-            axqq[0].set(title="Quantile-quantile plot against exponential distribution")
-            axqq[1].set(title="Quantile-quantile plot against power-law distribution")
+            #do bootstrapping shittily
+            n_samples=100
+            exp_coeff1=[]
+            exp_coeff2=[]
+            exp_coeff3=[]
+            pwr_coeff1=[]
+            pwr_coeff2=[]
+            pwr_coeff3=[]
+            for i in range(n_samples):
+                y_sample=sk.utils.resample(total_data,replace=True)
+                
+                sample_expfit=stats.expon.fit(y_sample)
+                exp_coeff1.append(area/sample_expfit[1])
+                exp_coeff2.append(sample_expfit[0])
+                exp_coeff3.append(sample_expfit[1])
+                
+                sample_pwr=powerlw(a=min(y_sample),b=max(y_sample))
+                sample_pwrfit=sample_pwr.fit(y_sample)
+                pwr_coeff1.append(area*sample_pwrfit[2]**(sample_pwrfit[0]-1))
+                pwr_coeff2.append(sample_pwrfit[1])
+                pwr_coeff3.append(sample_pwrfit[0])
+                
+## plotting that includes errors
+#            basic_plotter(ax,x_exp,y_exp,
+#                          legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$'
+#                          r' KS p-value = {}'.format(f"{params_exp[0]:.2f}",
+#                                     f"{exp_errs[0]:.2f}",
+#                                     f"{params_exp[1]:.4f}",
+#                                     f"{exp_errs[1]:.4f}",
+#                                     f"{ks_exp[1]:.2f}"), colorval="blue")
+#            basic_plotter(ax,x_pwr,y_pwr,
+#                          legend=r'Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$'
+#                          r' KS p-value = {}'.format(f"{params_pwr[0]:.2f}",
+#                                     f"{pwr_errs[0]:.2f}",
+#                                     f"{params_pwr[1]:.2f}",
+#                                     f"{pwr_errs[1]:.2f}",
+#                                     f"{ks_pwr[1]:.2f}"), colorval="red") 
+            ## plotting not including errors
+            basic_plotter(ax,x_exp,area*y_exp,
+                          legend=r'Exponential distribution $Ae^{{(b+x)/c }}$'+'\n'
+                                     r'A={}$\pm${}, b={}$\pm${}, c={}$\pm${}'
+                                   r' KS p-value = {}'.format(f"{area/params_exp[1]:.1f}",f"{np.std(exp_coeff1):.1f}",
+                                     f"{params_exp[0]:.1f}",f"{np.std(exp_coeff2):.1f}",
+                                     f"{params_exp[1]:.1f}",f"{np.std(exp_coeff3):.1f}",
+                                     f"{ks_exp[1]:.2f}"),colorval="blue")
+            basic_plotter(ax,x_pwr,area*y_pwr,
+                          legend=r'Power law distribution $A(b+x)^{{-c }}$'+'\n'
+                                  r'A={} $\pm$ {}, b={}$\pm${}, c={}$\pm${}'
+                                   r' KS p-value = {}'.format(f"{area*params_pwr[2]**(params_pwr[0]-1):.1e}",f"{np.std(pwr_coeff1):.1e}",
+                                     f"{params_pwr[1]:.1f}",f"{np.std(pwr_coeff2):.1f}",
+                                     f"{params_pwr[0]:.2f}",f"{np.std(pwr_coeff3):.2f}",
+                                     f"{ks_pwr[1]:.2f}"), colorval="red")
+            
+            #make ppplots and save separately
+            figpp,axpp=plt.subplots(2)
+            #Probplot objects
+            pp_exp=sm.ProbPlot(total_data,'expon',loc=params_exp[0],scale=params_exp[1])
+            pp_pwr=sm.ProbPlot(total_data,pwr,loc=params_pwr[1],scale=params_pwr[2],
+                               distargs=(params_pwr[0],))
+            pp_exp.ppplot(line='45',ax=axpp[0])
+            pp_pwr.ppplot(line='45',ax=axpp[1])
+            axpp[0].set(title="Probability-probability plot against exponential distribution")
+            axpp[1].set(title="Probability-probability against power-law distribution")
+#            axqq[0].set_xscale("log")
+#            axqq[0].set_yscale("log")
+#            axqq[1].set_xscale("log")
+#            axqq[1].set_yscale("log")
             
             qqsuffix=''
             if log:
                 qqsuffix='log'
-            figqq.savefig(os.path.join(out,"{}_qqplot{}{}.png".format(attr,urlify(structure_type),
+            figpp.savefig(os.path.join(out,"{}_pplot{}{}.png".format(attr,urlify(structure_type),
                                        qqsuffix)),
                           bbox_inches='tight')
             
