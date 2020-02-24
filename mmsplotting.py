@@ -16,6 +16,7 @@ import os
 import re #for url-ifying strings
 import textwrap #for fixing too-long labels that overlap
 from scipy.optimize import curve_fit #for fitting histograms
+import scipy.special as sp
 import sklearn as sk
 import scipy.stats as stats
 import statsmodels.api as sm
@@ -138,7 +139,25 @@ class powerlw(stats.rv_continuous):
         b=self.b
         return (x**(1-p)-a**(1-p))/(b**(1-p)-a**(1-p))
         
+def gammaincc_r(a,x):
+    '''
+    Extends the scipy implementation of an upper incomplete gamma function
+    to negative values of a
+    '''
     
+    if np.all(a>0):
+        return sp.gammaincc(a,x)
+    
+    else:
+        return gammaincc_r(a+1,x)-x**a*np.exp(-1*x)/sp.gamma(a+1)
+            
+
+class truncatedGamma(stats.rv_continuous):
+    "truncated Gamma distribution"
+    
+    def _pdf(self,x,p):
+        a=self.a
+        return np.exp(-1*x)*x**(-1*p)/sp.gamma(1-p)/gammaincc_r(1-p,a)    
     
 ###### DIRECTORY MANAGEMENT FNS ###############################################
 def directory_ensurer(directory):
@@ -515,21 +534,30 @@ def bar_charter(ax,data,labels):
     
     return data_bars
 
-def pie_plotter(ax,amounts,labels,title):
+def pie_plotter(ax,amounts,colors,title,labels=None,wdglabels=None,startangle=0,
+                radius=1,width=1,ecolor='w'):
     '''
     Makes a pie chart of the inputs
     Inputs:
         ax- the matplotlib axes on which to plot the pie
         amounts- a list or array of the various amounts for the pie chart
-        labels- the labels for each part of the pie, in the same order as amounts
+        colors-numpy array of list of floats determining the colors (e.g. created by a matplotlib colormap object)
         title- the title of the plot
-        **kwargs- dictionary of keyword arguments for the pie chart
+        labels- the legend for each part of the pie, in the same order as amounts
+        wdglabels- the labels for each wedge, next to the pie.
+        startangle- the angle at which the pie should start. Default 0 (along x axis)
+        radius- outer radius of the pie in plot coords (default 1)
+        width- width of hte pie wedge in plot coords (default 1)
+        ecolor- color for the edges. Default is white, 'w'
     Outputs:
         out- the output of the plot
     '''
     
-    wedges, texts= ax.pie(amounts)
-    ax.legend(wedges,labels)
+    wedges, texts= ax.pie(amounts,radius=radius,colors=colors,labels=wdglabels,
+                          startangle=startangle,
+                          wedgeprops=dict(width=width, edgecolor=ecolor))
+    if np.all(labels != None):
+        ax.legend(wedges,labels)
     ax.set_title(title)
     
     return wedges
@@ -857,13 +885,16 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
 #            exp_guess=[max(arr),0.005]
             #do fitting
             pwr=powerlw(a=min(total_data),b=max(total_data))
+#            gamm=truncatedGamma(a=min(total_data))
             params_exp,x_exp,y_exp=mle_fitter(total_data,stats.expon)
             params_pwr,x_pwr,y_pwr=mle_fitter(total_data,pwr)
+#            params_gamm,x_gamm,y_gamm=mle_fitter(total_data,gamm,loc=params_exp[0],scale=params_exp[1])
             #do KS testing
             ks_exp=stats.kstest(total_data,'expon',args=params_exp) #on all data points
 
             ks_pwr=stats.kstest(total_data,pwr.cdf,args=params_pwr) #on all data points
             
+#            ks_gamm=stats.kstest(total_data,gamm.cdf,args=params_gamm)
             #do bootstrapping shittily
             n_samples=100
             exp_coeff1=[]
@@ -885,57 +916,57 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
                 pwr_coeff1.append(area*sample_pwrfit[2]**(sample_pwrfit[0]-1))
                 pwr_coeff2.append(sample_pwrfit[1])
                 pwr_coeff3.append(sample_pwrfit[0])
-                
-## plotting that includes errors
-#            basic_plotter(ax,x_exp,y_exp,
-#                          legend=r'Exponential fit $({}\pm {})e^{{-({}\pm {})x}}$'
-#                          r' KS p-value = {}'.format(f"{params_exp[0]:.2f}",
-#                                     f"{exp_errs[0]:.2f}",
-#                                     f"{params_exp[1]:.4f}",
-#                                     f"{exp_errs[1]:.4f}",
-#                                     f"{ks_exp[1]:.2f}"), colorval="blue")
-#            basic_plotter(ax,x_pwr,y_pwr,
-#                          legend=r'Power law fit $({}\pm {}) x^{{ ({}\pm {}) }}$'
-#                          r' KS p-value = {}'.format(f"{params_pwr[0]:.2f}",
-#                                     f"{pwr_errs[0]:.2f}",
-#                                     f"{params_pwr[1]:.2f}",
-#                                     f"{pwr_errs[1]:.2f}",
-#                                     f"{ks_pwr[1]:.2f}"), colorval="red") 
-            ## plotting not including errors
-            basic_plotter(ax,x_exp,area*y_exp,
+            
+            ## plotting including errors
+            basic_plotter(ax,x_exp,area*y_exp, ylims=[0,max(vals)+10],
                           legend=r'Exponential distribution $Ae^{{(b+x)/c }}$'+'\n'
                                      r'A={}$\pm${}, b={}$\pm${}, c={}$\pm${}'
                                    r' KS p-value = {}'.format(f"{area/params_exp[1]:.1f}",f"{np.std(exp_coeff1):.1f}",
                                      f"{params_exp[0]:.1f}",f"{np.std(exp_coeff2):.1f}",
                                      f"{params_exp[1]:.1f}",f"{np.std(exp_coeff3):.1f}",
                                      f"{ks_exp[1]:.2f}"),colorval="blue")
-            basic_plotter(ax,x_pwr,area*y_pwr,
+            basic_plotter(ax,x_pwr,area*y_pwr, ylims=[0,max(vals)+10],
                           legend=r'Power law distribution $A(b+x)^{{-c }}$'+'\n'
                                   r'A={} $\pm$ {}, b={}$\pm${}, c={}$\pm${}'
                                    r' KS p-value = {}'.format(f"{area*params_pwr[2]**(params_pwr[0]-1):.1e}",f"{np.std(pwr_coeff1):.1e}",
                                      f"{params_pwr[1]:.1f}",f"{np.std(pwr_coeff2):.1f}",
                                      f"{params_pwr[0]:.2f}",f"{np.std(pwr_coeff3):.2f}",
                                      f"{ks_pwr[1]:.2f}"), colorval="red")
-            
+#            basic_plotter(ax,x_gamm,area*y_gamm, ylims=[0,max(vals)+10],
+#                          legend=r'Gamma distribution $\sim(b+x)^{{-p }} e^{{-(b+x)/c}}$'+'\n'
+#                                  r'b={}, p={}, c={}'
+#                                   r' KS p-value = {}'.format(f"{params_gamm[1]:.1f}",
+#                                     f"{params_gamm[0]:.2f}",f"{params_gamm[2]:.2f}", f"{ks_gamm[1]:.2f}"), colorval="red")
+#            
             #make ppplots and save separately
             figpp,axpp=plt.subplots(2)
             #Probplot objects
             pp_exp=sm.ProbPlot(total_data,'expon',loc=params_exp[0],scale=params_exp[1])
             pp_pwr=sm.ProbPlot(total_data,pwr,loc=params_pwr[1],scale=params_pwr[2],
                                distargs=(params_pwr[0],))
+#            pp_gamm=sm.ProbPlot(total_data,gamm,loc=params_gamm[1],scale=params_gamm[2],
+#                               distargs=(params_gamm[0],))            
             pp_exp.ppplot(line='45',ax=axpp[0])
             pp_pwr.ppplot(line='45',ax=axpp[1])
+#            pp_gamm.ppplot(line='45',ax=axpp[2])            
             axpp[0].set(title="Probability-probability plot against exponential distribution")
             axpp[1].set(title="Probability-probability against power-law distribution")
-#            axqq[0].set_xscale("log")
-#            axqq[0].set_yscale("log")
-#            axqq[1].set_xscale("log")
-#            axqq[1].set_yscale("log")
+#            axpp[2].set(title="Probability-probability against gamma distribution")
+
+            #make qqplots and save separately
+            figqq,axqq=plt.subplots(2)
+            pp_exp.qqplot(line='q',ax=axqq[0])
+            pp_pwr.qqplot(line='45',ax=axqq[1])
+            axqq[0].set(title="Quantile-Quantile plot against exponential distribution")
+            axqq[1].set(title="Quantile-Quantile against power-law distribution")
             
             qqsuffix=''
             if log:
                 qqsuffix='log'
             figpp.savefig(os.path.join(out,"{}_pplot{}{}.png".format(attr,urlify(structure_type),
+                                       qqsuffix)),
+                          bbox_inches='tight')
+            figqq.savefig(os.path.join(out,"{}_qqlot{}{}.png".format(attr,urlify(structure_type),
                                        qqsuffix)),
                           bbox_inches='tight')
             

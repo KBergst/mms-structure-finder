@@ -61,6 +61,7 @@ nbins=15 #number of bins for the size histograms
 
 DEBUG=0 #chooses whether to stop at iteration 15 or not
 REPLOT=0 #chooses whether to regenerate the plots or not
+REHIST=0 #chooses whether to regenerate the histograms and scatter plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -169,16 +170,18 @@ time_structs=0 #at B cadence
 time_plasmoid=0
 time_pullcs=0
 time_pushcs=0
-j_dot_E_para_sum=0 #average over all 4 satellites
-j_dot_E_perp_sum=0 #average over all 4 satellites
-j_dot_E_struct_para_sum=0
-j_dot_E_struct_perp_sum=0
-j_dot_E_plasmoid_para=0
-j_dot_E_plasmoid_perp=0
-j_dot_E_pullcs_para=0
-j_dot_E_pullcs_perp=0
-j_dot_E_pushcs_para=0
-j_dot_E_pushcs_perp=0
+j_dot_E_para_sum={} #average over all 4 satellites
+j_dot_E_para_sum['pos']=0.
+j_dot_E_para_sum['neg']=0.
+j_dot_E_perp_sum=j_dot_E_para_sum.copy() #average over all 4 satellites
+j_dot_E_struct_para_sum=j_dot_E_para_sum.copy()
+j_dot_E_struct_perp_sum=j_dot_E_para_sum.copy()
+j_dot_E_plasmoid_para=j_dot_E_para_sum.copy()
+j_dot_E_plasmoid_perp=j_dot_E_para_sum.copy()
+j_dot_E_pullcs_para=j_dot_E_para_sum.copy()
+j_dot_E_pullcs_perp=j_dot_E_para_sum.copy()
+j_dot_E_pushcs_para=j_dot_E_para_sum.copy()
+j_dot_E_pushcs_perp=j_dot_E_para_sum.copy()
 
 #legends, etc. for plotting
 b_label=['Magnetic field of structure over all satellites','Time','Bz (nT)']
@@ -325,8 +328,10 @@ for M in MMS:
     #populate j dot E total-related variables
     time_tot+=len(time_reg_b[M])*cadence/len(MMS) #at B cadence
     tmp,j_d_E_para,j_d_E_perp=pp.j_dot_e(j_curl,e_field[M],b_field[M])
-    j_dot_E_para_sum+=sum(j_d_E_para)/len(MMS)
-    j_dot_E_perp_sum+=sum(j_d_E_perp)/len(MMS)
+    j_dot_E_para_sum['pos']+=sum(j_d_E_para[j_d_E_para>0])/len(MMS)
+    j_dot_E_para_sum['neg']+=sum(j_d_E_para[j_d_E_para<0])/len(MMS)
+    j_dot_E_perp_sum['pos']+=sum(j_d_E_perp[j_d_E_perp>0])/len(MMS)
+    j_dot_E_perp_sum['neg']+=sum(j_d_E_perp[j_d_E_perp<0])/len(MMS)
 
 #find potential structure candidates from MMS 1 (data smoothed a small amount)
 bz_M1=ma.smoothing(b_field[MMS[0]][:,2],fixed=True,fixedwidth=6)
@@ -607,8 +612,10 @@ for i in range(len(crossing_indices_M1)):
     jE_para_avg=np.average(jE_para_struct)
     jE_perp_avg=np.average(jE_perp_struct)
     time_structs+=len(time_struct_b)*cadence
-    j_dot_E_struct_para_sum+=sum(jE_para_struct)
-    j_dot_E_struct_perp_sum+=sum(jE_perp_struct)
+    j_dot_E_struct_para_sum['pos']+=sum(jE_para_struct[jE_para_struct>0])
+    j_dot_E_struct_para_sum['neg']+=sum(jE_para_struct[jE_para_struct<0])
+    j_dot_E_struct_perp_sum['pos']+=sum(jE_perp_struct[jE_perp_struct>0])
+    j_dot_E_struct_perp_sum['neg']+=sum(jE_perp_struct[jE_perp_struct<0])
 
     #calculate approximate guide field
     gf,tmp=msc.guide_field(b_field_struct_sync)
@@ -652,16 +659,22 @@ for i in range(len(crossing_indices_M1)):
     #determine the j dot E breakdown for each 'real' structure
     if type_flag == 0:
         time_plasmoid+=len(time_struct_b)*cadence
-        j_dot_E_plasmoid_para+=sum(jE_para_struct)
-        j_dot_E_plasmoid_perp+=sum(jE_perp_struct)
+        j_dot_E_plasmoid_para['pos']+=sum(jE_para_struct[jE_para_struct>0])
+        j_dot_E_plasmoid_para['neg']+=sum(jE_para_struct[jE_para_struct<0])
+        j_dot_E_plasmoid_perp['pos']+=sum(jE_perp_struct[jE_perp_struct>0])
+        j_dot_E_plasmoid_perp['neg']+=sum(jE_perp_struct[jE_perp_struct<0])
     if type_flag == 1:
         time_pullcs+=len(time_struct_b)*cadence
-        j_dot_E_pullcs_para+=sum(jE_para_struct)
-        j_dot_E_pullcs_perp+=sum(jE_perp_struct)    
+        j_dot_E_pullcs_para['pos']+=sum(jE_para_struct[jE_para_struct>0])
+        j_dot_E_pullcs_para['neg']+=sum(jE_para_struct[jE_para_struct<0])
+        j_dot_E_pullcs_perp['pos']+=sum(jE_perp_struct[jE_perp_struct>0])
+        j_dot_E_pullcs_perp['neg']+=sum(jE_perp_struct[jE_perp_struct<0])    
     if type_flag == 2:
         time_pushcs+=len(time_struct_b)*cadence
-        j_dot_E_pushcs_para+=sum(jE_para_struct)
-        j_dot_E_pushcs_perp+=sum(jE_perp_struct)        
+        j_dot_E_pushcs_para['pos']+=sum(jE_para_struct[jE_para_struct>0])
+        j_dot_E_pushcs_para['neg']+=sum(jE_para_struct[jE_para_struct<0])
+        j_dot_E_pushcs_perp['pos']+=sum(jE_perp_struct[jE_perp_struct>0])
+        j_dot_E_pushcs_perp['neg']+=sum(jE_perp_struct[jE_perp_struct<0])       
         
     if(REPLOT):
         #structure information for plot
@@ -818,6 +831,7 @@ for i in range(len(crossing_indices_M1)):
         plt.close(fig="all")                                  
 
 """ STATISTICAL PART """
+
 #make bar chart of the different types of structures
 fig_bar,ax_bar=plt.subplots()
 mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
@@ -826,215 +840,199 @@ mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
 fig_bar.savefig(os.path.join(statistics_out_directory,
                              "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')
-#make histograms of the x-lengths of all structures
-structure_kinds=type_dict.values()
-mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
-                          structure_kinds)    
-mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,
-                          nbins_small,structure_kinds, log=True)
-#make histograms of the time durations of all structures
-mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
-                              nbins,structure_kinds)   
-mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
+
+if(REHIST):
+    #make histograms of the x-lengths of all structures
+    structure_kinds=type_dict.values()
+    mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,nbins,
+                              structure_kinds)    
+    mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,
                               nbins_small,structure_kinds, log=True)
-#make histograms of the normalized x-lengths of all structures
-mmsp.msc_structure_hist_maker(MMS_structures,"electron_normalized_size",
-                              hists_out_directory,nbins,structure_kinds)  
-mmsp.msc_structure_hist_maker(MMS_structures,"ion_normalized_size",
-                              hists_out_directory,nbins,structure_kinds) 
-mmsp.msc_structure_hist_maker(MMS_structures,"electron_normalized_size",
-                              hists_out_directory,nbins_small,structure_kinds,
-                              log=True)  
-mmsp.msc_structure_hist_maker(MMS_structures,"ion_normalized_size",
-                              hists_out_directory,nbins_small,structure_kinds,
-                              log=True)
-#make histograms of the guide field strengths of all structures
-mmsp.msc_structure_hist_maker(MMS_structures,'guide_field',hists_out_directory,
-                          nbins_small,structure_kinds)
-#make histograms of the core field strengths of all structures
-mmsp.msc_structure_hist_maker(MMS_structures,'core_field',hists_out_directory,
-                          nbins_small,structure_kinds)      
-# make histograms of the velocities of all structures
-mmsp.msc_structure_hist_maker(MMS_structures,'normal_speed',
-                              hists_out_directory,nbins,structure_kinds) 
-mmsp.msc_structure_hist_maker(MMS_structures,'normal_speed',
-                              hists_out_directory,nbins_small,structure_kinds,
-                              log=True) 
-#make histograms of the normalized velocities of all structures
-mmsp.msc_structure_hist_maker(MMS_structures,'electron_normalized_speed',
-                              hists_out_directory,nbins,structure_kinds)
-mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
-                              hists_out_directory,nbins,structure_kinds)
-mmsp.msc_structure_hist_maker(MMS_structures,'electron_normalized_speed',
-                              hists_out_directory,nbins_small,structure_kinds,
-                              log=True)
-mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
-                              hists_out_directory,nbins_small,structure_kinds,
-                              log=True)
-#make histograms of the j dot E of all structures
-mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_parallel',
-                              hists_out_directory,nbins,structure_kinds)
-mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_perpendicular',
-                              hists_out_directory,nbins,structure_kinds)
-##make scatter plot of guide field strength vs structure size 
-#mmsp.msc_structure_scatter_maker(MMS_structures,'size','guide_field',
-#                                 scatters_out_directory,structure_kinds)  
-##make scatter plot of core field strength vs structure size
-#mmsp.msc_structure_scatter_maker(MMS_structures,'size','core_field',
-#                                 scatters_out_directory,structure_kinds) 
-# make scatter plot of signed normal speed vs structure size 
-mmsp.msc_structure_scatter_maker(MMS_structures,'size','signed_normal_speed',
-                                 scatters_out_directory,structure_kinds)
-##make scatter plot of normal speed vs structure duration
-#mmsp.msc_structure_scatter_maker(MMS_structures,'duration','normal_speed',
-#                                 scatters_out_directory,structure_kinds)
-## make scatter plot of normalized speeds vs normalized structure size
-#mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
-#                                 'electron_normalized_speed',
-#                                 scatters_out_directory,structure_kinds)
-#mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
-#                                 'ion_normalized_speed',
-#                                 scatters_out_directory,structure_kinds)
-##make scatter plot comparing ion-normalized and electron-normalized attributes
-#mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
-#                                 'ion_normalized_size',
-#                                 scatters_out_directory,structure_kinds)
-#mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_speed',
-#                                 'ion_normalized_speed',
-#                                 scatters_out_directory,structure_kinds)
-## make scatter plot of the j dot E vs structure size 
-#mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_parallel',
-#                                 scatters_out_directory,structure_kinds)
-#mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_perpendicular',
-#                                 scatters_out_directory,structure_kinds)
-## make scatter plot of the j dot E vs ion-normalized structure size 
-#mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
-#                                 'j_dot_E_parallel',scatters_out_directory,
-#                                 structure_kinds)
-#mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
-#                                 'j_dot_E_perpendicular',
-#                                 scatters_out_directory,structure_kinds)
-##make scatter plot of the j dot E vs core field 
-#mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
-#                                 'j_dot_E_parallel',scatters_out_directory,
-#                                 structure_kinds)
-#mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
-#                                 'j_dot_E_perpendicular',
-#                                 scatters_out_directory,structure_kinds)
-## make scatter plot of the j dot E vs guide field 
-#mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
-#                                 'j_dot_E_parallel',scatters_out_directory,
-#                                 structure_kinds)
-#mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
-#                                 'j_dot_E_perpendicular',
-#                                 scatters_out_directory,structure_kinds)
+    #make histograms of the time durations of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
+                                  nbins,structure_kinds)   
+    mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
+                                  nbins_small,structure_kinds, log=True)
+    #make histograms of the normalized x-lengths of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,"electron_normalized_size",
+                                  hists_out_directory,nbins,structure_kinds)  
+    mmsp.msc_structure_hist_maker(MMS_structures,"ion_normalized_size",
+                                  hists_out_directory,nbins,structure_kinds) 
+    mmsp.msc_structure_hist_maker(MMS_structures,"electron_normalized_size",
+                                  hists_out_directory,nbins_small,structure_kinds,
+                                  log=True)  
+    mmsp.msc_structure_hist_maker(MMS_structures,"ion_normalized_size",
+                                  hists_out_directory,nbins_small,structure_kinds,
+                                  log=True)
+    #make histograms of the guide field strengths of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,'guide_field',hists_out_directory,
+                              nbins_small,structure_kinds)
+    #make histograms of the core field strengths of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,'core_field',hists_out_directory,
+                              nbins_small,structure_kinds)      
+    # make histograms of the velocities of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,'normal_speed',
+                                  hists_out_directory,nbins,structure_kinds) 
+    mmsp.msc_structure_hist_maker(MMS_structures,'normal_speed',
+                                  hists_out_directory,nbins_small,structure_kinds,
+                                  log=True) 
+    #make histograms of the normalized velocities of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,'electron_normalized_speed',
+                                  hists_out_directory,nbins,structure_kinds)
+    mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
+                                  hists_out_directory,nbins,structure_kinds)
+    mmsp.msc_structure_hist_maker(MMS_structures,'electron_normalized_speed',
+                                  hists_out_directory,nbins_small,structure_kinds,
+                                  log=True)
+    mmsp.msc_structure_hist_maker(MMS_structures,'ion_normalized_speed',
+                                  hists_out_directory,nbins_small,structure_kinds,
+                                  log=True)
+    #make histograms of the j dot E of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_parallel',
+                                  hists_out_directory,nbins,structure_kinds)
+    mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_perpendicular',
+                                  hists_out_directory,nbins,structure_kinds)
+    ##make scatter plot of guide field strength vs structure size 
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'size','guide_field',
+    #                                 scatters_out_directory,structure_kinds)  
+    ##make scatter plot of core field strength vs structure size
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'size','core_field',
+    #                                 scatters_out_directory,structure_kinds) 
+    # make scatter plot of signed normal speed vs structure size 
+    mmsp.msc_structure_scatter_maker(MMS_structures,'size','signed_normal_speed',
+                                     scatters_out_directory,structure_kinds)
+    ##make scatter plot of normal speed vs structure duration
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'duration','normal_speed',
+    #                                 scatters_out_directory,structure_kinds)
+    ## make scatter plot of normalized speeds vs normalized structure size
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
+    #                                 'electron_normalized_speed',
+    #                                 scatters_out_directory,structure_kinds)
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+    #                                 'ion_normalized_speed',
+    #                                 scatters_out_directory,structure_kinds)
+    ##make scatter plot comparing ion-normalized and electron-normalized attributes
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_size',
+    #                                 'ion_normalized_size',
+    #                                 scatters_out_directory,structure_kinds)
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'electron_normalized_speed',
+    #                                 'ion_normalized_speed',
+    #                                 scatters_out_directory,structure_kinds)
+    ## make scatter plot of the j dot E vs structure size 
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_parallel',
+    #                                 scatters_out_directory,structure_kinds)
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'size','j_dot_E_perpendicular',
+    #                                 scatters_out_directory,structure_kinds)
+    ## make scatter plot of the j dot E vs ion-normalized structure size 
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+    #                                 'j_dot_E_parallel',scatters_out_directory,
+    #                                 structure_kinds)
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'ion_normalized_size',
+    #                                 'j_dot_E_perpendicular',
+    #                                 scatters_out_directory,structure_kinds)
+    ##make scatter plot of the j dot E vs core field 
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
+    #                                 'j_dot_E_parallel',scatters_out_directory,
+    #                                 structure_kinds)
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'core_field',
+    #                                 'j_dot_E_perpendicular',
+    #                                 scatters_out_directory,structure_kinds)
+    ## make scatter plot of the j dot E vs guide field 
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
+    #                                 'j_dot_E_parallel',scatters_out_directory,
+    #                                 structure_kinds)
+    #mmsp.msc_structure_scatter_maker(MMS_structures,'guide_field',
+    #                                 'j_dot_E_perpendicular',
+    #                                 scatters_out_directory,structure_kinds)
 
 ''' J dot E INFO '''
+print(j_dot_E_para_sum)
+print(j_dot_E_perp_sum)
+print(j_dot_E_struct_para_sum)
+print(j_dot_E_struct_perp_sum)
+print(j_dot_E_plasmoid_para)
+print(j_dot_E_plasmoid_perp)
+print(j_dot_E_pullcs_para)
+print(j_dot_E_pullcs_perp)
+print(j_dot_E_pushcs_para)
+print(j_dot_E_pushcs_perp)
 
-#calculate percentages for overall structures and for plasmoids, pull cs, push cs specifically
-percent_time=time_structs/time_tot*100
-str_percent_time=f"{percent_time:.1f}"
-percent_jE_para=j_dot_E_struct_para_sum/j_dot_E_para_sum*100
-str_percent_jE_para=f"{percent_jE_para:.1f}"
-percent_jE_perp=j_dot_E_struct_perp_sum/j_dot_E_perp_sum*100
-str_percent_jE_perp=f"{percent_jE_perp:.1f}"
+#make pie charts of the J dot E breakdowns
+fig_pie,ax_pie=plt.subplots()
+cmap = plt.get_cmap("tab20c")
+w_width=.3
 
-percent_time_plas=time_plasmoid/time_tot*100
-str_percent_time_plas=f"{percent_time_plas:.1f}"
-percent_jE_para_plas=j_dot_E_plasmoid_para/j_dot_E_para_sum*100
-str_percent_jE_para_plas=f"{percent_jE_para_plas:.1f}"
-percent_jE_perp_plas=j_dot_E_plasmoid_perp/j_dot_E_perp_sum*100
-str_percent_jE_perp_plas=f"{percent_jE_perp_plas:.1f}"
+#set data for the pie of overall (summed) J dot E breakdown
+j_dot_E_para_tot=j_dot_E_para_sum['pos']+j_dot_E_para_sum['neg']
+j_dot_E_perp_tot=j_dot_E_perp_sum['pos']+j_dot_E_perp_sum['neg']
+j_dot_E_para_struct_tot=j_dot_E_struct_para_sum['pos']+j_dot_E_struct_para_sum['neg']
+j_dot_E_para_out_tot=j_dot_E_para_tot-j_dot_E_para_struct_tot
+j_dot_E_perp_struct_tot=j_dot_E_struct_perp_sum['pos']+j_dot_E_struct_perp_sum['neg']
+j_dot_E_perp_out_tot=j_dot_E_perp_tot-j_dot_E_perp_struct_tot
 
-percent_time_pull=time_pullcs/time_tot*100
-str_percent_time_pull=f"{percent_time_pull:.1f}"
-percent_jE_para_pull=j_dot_E_pullcs_para/j_dot_E_para_sum*100
-str_percent_jE_para_pull=f"{percent_jE_para_pull:.1f}"
-percent_jE_perp_pull=j_dot_E_pullcs_perp/j_dot_E_perp_sum*100
-str_percent_jE_perp_pull=f"{percent_jE_perp_pull:.1f}"
-
-percent_time_push=time_pushcs/time_tot*100
-str_percent_time_push=f"{percent_time_push:.1f}"
-percent_jE_para_push=j_dot_E_pushcs_para/j_dot_E_para_sum*100
-str_percent_jE_para_push=f"{percent_jE_para_push:.1f}"
-percent_jE_perp_push=j_dot_E_pushcs_perp/j_dot_E_perp_sum*100
-str_percent_jE_perp_push=f"{percent_jE_perp_push:.1f}"
-
-percent_jE_para_perp=j_dot_E_para_sum/(j_dot_E_para_sum+ \
-                                         j_dot_E_perp_sum)*100 #percentage of j dot E from parallel
-str_percent_jE_para_perp = f"{percent_jE_para_perp:.1f}"               
-#print out all the info                                     
-print('On average:')
-
-print(r'Percentage of total time taken up by identified structures: {}%' \
-                                                 .format(str_percent_time))
-print(r'Percentage of J dot E parallel from structures: {}%' \
-                                              .format(str_percent_jE_para))
-print(r'Percentage of J dot E perp from structures: {}%' \
-                                              .format(str_percent_jE_perp))
-
-print(r'Percentage of total time taken up by plasmoids: {}%' \
-                                          .format(str_percent_time_plas))
-print(r'Percentage of J dot E parallel from plasmoids: {}%' \
-                                         .format(str_percent_jE_para_plas))
-print(r'Percentage of J dot E perp from plasmoids: {}%' \
-                                         .format(str_percent_jE_perp_plas))
-
-print(r'Percentage of total time taken up by pull current sheets: {}%' \
-                                          .format(str_percent_time_pull))
-print(r'Percentage of J dot E parallel from pull current sheets: {}%' \
-                                         .format(str_percent_jE_para_pull))
-print(r'Percentage of J dot E perp from pull current sheets: {}%' \
-                                         .format(str_percent_jE_perp_pull))
-
-print(r'Percentage of total time taken up by push current sheets: {}%' \
-                                          .format(str_percent_time_push))
-print(r'Percentage of J dot E parallel from push current sheets: {}%' \
-                                         .format(str_percent_jE_para_push))
-print(r'Percentage of J dot E perp from push current sheets: {}%' \
-                                         .format(str_percent_jE_perp_push))
-
-print(r'Percentage of J dot E parallel contribution to J dot E:'
-      ' {}%'.format(str_percent_jE_para_perp))
-    
-percent_jE_para_perp_struct=j_dot_E_struct_para_sum/(j_dot_E_struct_para_sum+ \
-                                                j_dot_E_struct_perp_sum)*100 
-str_percent_jE_para_perp_struct = f"{percent_jE_para_perp_struct:.1f}"
-percent_jE_para_perp_plas=j_dot_E_plasmoid_para/(j_dot_E_plasmoid_para+ \
-                                                j_dot_E_plasmoid_perp)*100 
-str_percent_jE_para_perp_plas = f"{percent_jE_para_perp_plas:.1f}"
-percent_jE_para_perp_pull=j_dot_E_pullcs_para/(j_dot_E_pullcs_para+ \
-                                                j_dot_E_pullcs_perp)*100 
-str_percent_jE_para_perp_pull = f"{percent_jE_para_perp_pull:.1f}"
-percent_jE_para_perp_push=j_dot_E_pushcs_para/(j_dot_E_pushcs_para+ \
-                                                j_dot_E_pushcs_perp)*100 
-str_percent_jE_para_perp_push = f"{percent_jE_para_perp_push:.1f}"
-                                                     
-print(r'Percentage of J dot E parallel contribution to J dot E within the '
-      'structures: {}%'.format(percent_jE_para_perp_struct))
-print(r'Percentage of J dot E parallel contribution to J dot E within the '
-      'plasmoids: {}%'.format(percent_jE_para_perp_plas))
-print(r'Percentage of J dot E parallel contribution to J dot E within the '
-      'pull current sheets: {}%'.format(percent_jE_para_perp_pull))
-print(r'Percentage of J dot E parallel contribution to J dot E within the '
-      'push current sheets: {}%'.format(percent_jE_para_perp_push))
-
-#make pie chart of the J dot E breakdown
-j_dot_E_out_para_sum=j_dot_E_para_sum - j_dot_E_struct_para_sum
-j_dot_E_out_perp_sum=j_dot_E_perp_sum - j_dot_E_struct_perp_sum
+#set colors for the overall pie
+outcolors=cmap(np.array([0,3])*4)
+incolors=cmap([1,2,13,14])
+#plot overall pie
+mmsp.pie_plotter(ax_pie,[j_dot_E_para_tot,j_dot_E_perp_tot],outcolors,
+                  r"$J \cdot E$ breakdown",wdglabels=[r"$J_{\parallel} E_{\parallel}$",
+                  r"$J_{\perp} \cdot E_{\perp}$"],width=w_width)
+mmsp.pie_plotter(ax_pie,[j_dot_E_para_struct_tot,j_dot_E_para_out_tot,
+                 j_dot_E_perp_struct_tot,j_dot_E_perp_out_tot],incolors,
+                 r"$J \cdot E$ breakdown",
+                 labels=[r"$J_{\parallel} E_{\parallel}$ within structures",
+                  r"$J_{\parallel} E_{\parallel}$ outside structures",
+                  r"$J_{\perp} \cdot E_{\perp}$ within structures",
+                  r"$J_{\perp} \cdot E_{\perp}$ outside structures"],
+                 radius=1-w_width,width=w_width)
+fig_pie.savefig(os.path.join(statistics_out_directory,
+                             "j_dot_e_pie_overall"+".png"),bbox_inches='tight')
+plt.close(fig='all')
 
 fig_pie,ax_pie=plt.subplots()
-mmsp.pie_plotter(ax_pie,[j_dot_E_out_para_sum,j_dot_E_struct_para_sum,
-                  j_dot_E_out_perp_sum,j_dot_E_struct_perp_sum],
-                 [r"$J_{\parallel} E_{\parallel}$ outside structures",
-                  r"$J_{\parallel} E_{\parallel}$ from structures",
-                  r"$J_{\perp} \cdot E_{\perp}$ outside structures",
-                  r"$J_{\perp} \cdot E_{\perp}$ from structures"],
-                  r"Breakdown of $J \cdot E$ over the entire turbulent "
-                  "reconnection region")
+#set data for positive-negative breakdown of j_parallel e_parallel
+j_dot_E_para_out_pos=j_dot_E_para_sum['pos']-j_dot_E_struct_para_sum['pos']
+j_dot_E_para_out_neg=np.abs(j_dot_E_para_sum['neg']-j_dot_E_struct_para_sum['neg'])
+
+#set colors for j_parallel e_parallel pie
+outcolors=cmap(np.array([0,3])*4)
+incolors=cmap(np.array([0,3])*4+1)
+angle=np.pi/2
+#plot j_parallel e_parallel pie
+mmsp.pie_plotter(ax_pie,[j_dot_E_para_out_pos,j_dot_E_para_out_neg],outcolors,
+                 r"$J_{\parallel} \cdot E_{\parallel}$ contributions",
+                 wdglabels=[r"positive $J_{\parallel} E_{\parallel}$",
+                  r" negative $J_{\parallel} \cdot E_{\parallel}$"],
+                  width=w_width,startangle=angle)
+mmsp.pie_plotter(ax_pie,[j_dot_E_struct_para_sum['pos'],np.abs(j_dot_E_struct_para_sum['neg'])],incolors,
+                  r"$J_{\parallel} \cdot E_{\parallel}$ contributions",                
+                  labels=[r"positive $J_{\parallel} E_{\parallel}$ within structures",
+                  r" negative $J_{\parallel} \cdot E_{\parallel}$ within structures"],
+                  radius=1-w_width, width=w_width,startangle=angle)
 
 fig_pie.savefig(os.path.join(statistics_out_directory,
-                             "j_dot_e_pie"+".png"),bbox_inches='tight')
+                             "j_dot_e_pie_para"+".png"),bbox_inches='tight')
+plt.close(fig='all')
+
+fig_pie,ax_pie=plt.subplots()
+#set data for positive-negative breakdown of j_perp e_perp
+j_dot_E_perp_out_pos=j_dot_E_perp_sum['pos']-j_dot_E_struct_perp_sum['pos']
+j_dot_E_perp_out_neg=np.abs(j_dot_E_perp_sum['neg']-j_dot_E_struct_perp_sum['neg'])
+
+#plot j_perp e_perp pie
+mmsp.pie_plotter(ax_pie,[j_dot_E_perp_out_pos,j_dot_E_perp_out_neg],outcolors,
+                 r"$J_{\perp} \cdot E_{\perp}$ contributions",
+                 wdglabels=[r"positive $J_{\perp} \cdot E_{\perp}$",
+                  r" negative $J_{\perp} \cdot E_{\perp}$"],
+                  width=w_width,startangle=angle)
+mmsp.pie_plotter(ax_pie,[j_dot_E_struct_perp_sum['pos'],np.abs(j_dot_E_struct_perp_sum['neg'])],incolors,
+                 r"$J_{\perp} \cdot E_{\perp}$ contributions",       
+                 labels=[r"positive $J_{\perp} \cdot E_{\perp}$ within structures",
+                 r" negative $J_{\perp} \cdot E_{\perp}$ within structures"],
+                 radius=1-w_width, width=w_width,startangle=angle)
+
+fig_pie.savefig(os.path.join(statistics_out_directory,
+                             "j_dot_e_pie_perp"+".png"),bbox_inches='tight')
 plt.close(fig='all')
 
 print(MMS_structure_counts)
