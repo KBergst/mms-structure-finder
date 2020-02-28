@@ -945,6 +945,9 @@ if(REHIST):
     #                                 'j_dot_E_perpendicular',
     #                                 scatters_out_directory,structure_kinds)
 
+#make histograms of the j dot E (for testing j dot E hist quicker)
+mmsp.msc_structure_hist_maker(MMS_structures,'j_dot_E_parallel',
+                              hists_out_directory,30,structure_kinds)
 ''' J dot E INFO '''
 print(j_dot_E_para_sum)
 print(j_dot_E_perp_sum)
@@ -971,20 +974,16 @@ j_dot_E_perp_struct_tot=j_dot_E_struct_perp_sum['pos']+j_dot_E_struct_perp_sum['
 j_dot_E_perp_out_tot=j_dot_E_perp_tot-j_dot_E_perp_struct_tot
 
 #set colors for the overall pie
-outcolors=cmap(np.array([0,3])*4)
-incolors=cmap([1,2,13,14])
+incolors=cmap([0,1,13,12])
 #plot overall pie
-mmsp.pie_plotter(ax_pie,[j_dot_E_para_tot,j_dot_E_perp_tot],outcolors,
-                  r"$J \cdot E$ breakdown",wdglabels=[r"$J_{\parallel} E_{\parallel}$",
-                  r"$J_{\perp} \cdot E_{\perp}$"],width=w_width)
-mmsp.pie_plotter(ax_pie,[j_dot_E_para_struct_tot,j_dot_E_para_out_tot,
-                 j_dot_E_perp_struct_tot,j_dot_E_perp_out_tot],incolors,
-                 r"$J \cdot E$ breakdown",
-                 labels=[r"$J_{\parallel} E_{\parallel}$ within structures",
-                  r"$J_{\parallel} E_{\parallel}$ outside structures",
-                  r"$J_{\perp} \cdot E_{\perp}$ within structures",
-                  r"$J_{\perp} \cdot E_{\perp}$ outside structures"],
-                 radius=1-w_width,width=w_width)
+mmsp.pie_plotter(ax_pie,[j_dot_E_para_struct_tot,j_dot_E_para_out_tot,j_dot_E_perp_out_tot,
+                 j_dot_E_perp_struct_tot],incolors,
+                 r"$J \cdot E$ breakdown outside and within structures",
+                 wdglabels=[r"$J_{\parallel} E_{\parallel}$"+ "\n within",
+                  r"$J_{\parallel} E_{\parallel}$"+ "\n outside",
+                  r"$J_{\perp} \cdot E_{\perp}$"+ "\n outside",
+                  r"$J_{\perp} \cdot E_{\perp}$"+ "\n within"],
+                 radius=1,width=2*w_width)
 fig_pie.savefig(os.path.join(statistics_out_directory,
                              "j_dot_e_pie_overall"+".png"),bbox_inches='tight')
 plt.close(fig='all')
@@ -997,17 +996,17 @@ j_dot_E_para_out_neg=np.abs(j_dot_E_para_sum['neg']-j_dot_E_struct_para_sum['neg
 #set colors for j_parallel e_parallel pie
 outcolors=cmap(np.array([0,3])*4)
 incolors=cmap(np.array([0,3])*4+1)
-angle=np.pi/2
+angle=90
 #plot j_parallel e_parallel pie
 mmsp.pie_plotter(ax_pie,[j_dot_E_para_out_pos,j_dot_E_para_out_neg],outcolors,
-                 r"$J_{\parallel} \cdot E_{\parallel}$ contributions",
-                 wdglabels=[r"positive $J_{\parallel} E_{\parallel}$",
-                  r" negative $J_{\parallel} \cdot E_{\parallel}$"],
+                 r"$J_{\parallel} E_{\parallel}$ contributions outside and within structures",
+                 wdglabels=["positive \n"+r"$J_{\parallel} E_{\parallel}$",
+                  "negative \n"+r"$J_{\parallel} E_{\parallel}$"],
                   width=w_width,startangle=angle)
 mmsp.pie_plotter(ax_pie,[j_dot_E_struct_para_sum['pos'],np.abs(j_dot_E_struct_para_sum['neg'])],incolors,
-                  r"$J_{\parallel} \cdot E_{\parallel}$ contributions",                
-                  labels=[r"positive $J_{\parallel} E_{\parallel}$ within structures",
-                  r" negative $J_{\parallel} \cdot E_{\parallel}$ within structures"],
+                  r"$J_{\parallel} E_{\parallel}$ contributions outside and within structures",                
+                  labels=[r"positive $J_{\parallel} E_{\parallel}$"+"\n within structures",
+                  r"negative $J_{\parallel} E_{\parallel}$"+"\n within structures"],
                   radius=1-w_width, width=w_width,startangle=angle)
 
 fig_pie.savefig(os.path.join(statistics_out_directory,
@@ -1021,14 +1020,14 @@ j_dot_E_perp_out_neg=np.abs(j_dot_E_perp_sum['neg']-j_dot_E_struct_perp_sum['neg
 
 #plot j_perp e_perp pie
 mmsp.pie_plotter(ax_pie,[j_dot_E_perp_out_pos,j_dot_E_perp_out_neg],outcolors,
-                 r"$J_{\perp} \cdot E_{\perp}$ contributions",
-                 wdglabels=[r"positive $J_{\perp} \cdot E_{\perp}$",
-                  r" negative $J_{\perp} \cdot E_{\perp}$"],
+                 r"$J_{\perp} \cdot E_{\perp}$ contributions outside and within structures",
+                 wdglabels=["positive \n"+r"$J_{\perp} \cdot E_{\perp}$",
+                  "negative \n"+r"$J_{\perp} \cdot E_{\perp}$"],
                   width=w_width,startangle=angle)
 mmsp.pie_plotter(ax_pie,[j_dot_E_struct_perp_sum['pos'],np.abs(j_dot_E_struct_perp_sum['neg'])],incolors,
-                 r"$J_{\perp} \cdot E_{\perp}$ contributions",       
-                 labels=[r"positive $J_{\perp} \cdot E_{\perp}$ within structures",
-                 r" negative $J_{\perp} \cdot E_{\perp}$ within structures"],
+                 r"$J_{\perp} \cdot E_{\perp}$ contributions outside and within structures",       
+                 labels=[r"positive $J_{\perp} \cdot E_{\perp}$"+ "\n within structures",
+                 r"negative $J_{\perp} \cdot E_{\perp}$"+"\n within structures"],
                  radius=1-w_width, width=w_width,startangle=angle)
 
 fig_pie.savefig(os.path.join(statistics_out_directory,

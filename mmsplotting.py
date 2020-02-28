@@ -210,7 +210,7 @@ def textify(string):
 
 ##### PLOTTING FNS ############################################################
 def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
-                  yerrors=None,square=False,ylims=None,colorval=None):
+                  yerrors=None,square=False,ylims=None,colorval=None,**kwargs):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -236,7 +236,7 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
     Outputs:
         out- the ax.plot instance used
     '''
-    out = ax.plot(data1, data2,label=legend,color=colorval)
+    out = ax.plot(data1, data2,label=legend,color=colorval,**kwargs)
     if not (yerrors is None): #set legend, if it exists
         ax.errorbar(data1,data2,yerr=yerrors,fmt='.',capsize=3)
     if not (labels is None): #set labels, if they exist
@@ -277,7 +277,7 @@ def window_squarer(data1,data2):
     return xlims,ylims
     
 def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None,
-                    logscale=False):
+                    logscale=False,**kwargs):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -305,7 +305,7 @@ def tseries_plotter(fig,ax, data1, data2,labels,lims,legend=None,
     ax.xaxis.set_major_formatter(mpl.dates.DateFormatter("%H:%M:%S.%f"))
     ax.tick_params(axis='both',length=6,width=2, direction='in' )
     ax.set( title=labels[0], xlabel=labels[1], ylabel=labels[2])
-    out = ax.plot(data1, data2,label=legend)
+    out = ax.plot(data1, data2,label=legend,**kwargs)
     if not (legend is None):
         ax.legend(edgecolor='black')
     
@@ -344,7 +344,7 @@ def line_maker(axes,horiz=None,time=None,edges=None):
             ax.axvline(x=edges[0],color="blue")
             ax.axvline(x=edges[1],color="blue")
 
-def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
+def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False,errs=True,**kwargs):
     '''
     Makes density histograms, for the statistical processing
     Inputs:
@@ -357,6 +357,7 @@ def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
         limits- list of [min value, max value]
         n_bins- desired number of bins, default is 10
         logscale- True if want log, False if not, default is False
+        errs- whether or not to do error bars. Default True
     Outputs:
         out- the ax.hist instance used
         errs- the error bars on the plots
@@ -379,12 +380,14 @@ def histogram_plotter(ax,values,labels,limits,n_bins=10,logscale=False):
         ax.xaxis.set_minor_formatter(LogFormatter(labelOnlyBase=False,
                                                   minor_thresholds=(2.,5.)))
         log_bins=log_hist_bins(limits,n_bins)
-        out=ax.hist(values,log_bins)
-        errs = hist_errs(ax,out)
+        out=ax.hist(values,log_bins,**kwargs)
+        if errs:
+            errs = hist_errs(ax,out)
     else:
         reg_bins=hist_bins(limits,n_bins)
-        out=ax.hist(values,reg_bins)
-        errs = hist_errs(ax,out)
+        out=ax.hist(values,reg_bins,**kwargs)
+        if errs:
+            errs = hist_errs(ax,out)
     
     return [out,errs]
 
@@ -970,6 +973,30 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
                                        qqsuffix)),
                           bbox_inches='tight')
             
+        if ((attr == 'j_dot_E_parallel') \
+                                    and (structure_type == 'plasmoids' \
+                                or structure_type == 'pull current sheets' \
+                                or structure_type == 'push current sheets')): #do comparison histogram
+            je_perp_data=np.array([]) #get j perp dot e perp data
+            for structure in data:
+                if structure.kind == structure_type:
+                    structure_dat=getattr(structure,'j_dot_E_perpendicular')                                          
+                    je_perp_data=np.append(je_perp_data,structure_dat)
+            all_limits=[min(total_data.min(),je_perp_data.min()),
+                        max(total_data.max(),je_perp_data.max())]
+            fig_je,ax_je=plt.subplots()
+            jelabels=['J dot E of {} over all satellites'.format(structure_type),
+                    'J dot E ({})'.format(attr_units),
+                    'Number of instances']  
+            kw={'histtype':'step','stacked':False,'fill':False}
+            kw['color']=['blue','red']
+            kw['label']=[r'$J_\parallel E_\parallel$',r'$J_\perp \cdot E_\perp$']
+            histogram_plotter(ax_je,[total_data,je_perp_data],jelabels,all_limits,n_bins=bins_num,
+                              logscale=False,errs=False,**kw)
+            ax_je.axvline(x=0,color='black',linestyle=':')
+            ax_je.legend(edgecolor='black')
+            fig_je.savefig(os.path.join(out,"J_dot_E_tot_hist_{}.png".format(urlify(structure_type))),
+                           bbox_inches='tight')
             
 
         if log:
