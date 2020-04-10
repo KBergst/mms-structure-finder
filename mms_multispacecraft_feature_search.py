@@ -877,7 +877,7 @@ for i in range(len(crossing_indices_M1)):
         mmsp.line_maker([ax3],time=crossing_time_ms,edges=crossing_struct_times_ms,
                         horiz=0.)
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
-                                'paperfig'+str(i)+".png"), 
+                                'paperfig'+str(i)+".pdf"), 
                                 bbox_inches='tight')
         plt.close(fig="all") 
         
@@ -890,7 +890,7 @@ mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
                                          '',
                                          'Counts']) 
 fig_bar.savefig(os.path.join(statistics_out_directory,
-                             "types_bar_chart"+".png"),bbox_inches='tight')
+                             "types_bar_chart"+".pdf"),bbox_inches='tight')
 plt.close(fig='all')
 
 if(REHIST):
@@ -1037,7 +1037,7 @@ mmsp.pie_plotter(ax_pie,[j_dot_E_para_struct_tot,j_dot_E_para_out_tot,j_dot_E_pe
                   r"$J_{\perp} \cdot E_{\perp}$"+ "\n within"],
                  radius=1,width=2*w_width)
 fig_pie.savefig(os.path.join(statistics_out_directory,
-                             "j_dot_e_pie_overall"+".png"),bbox_inches='tight')
+                             "j_dot_e_pie_overall"+".pdf"),bbox_inches='tight')
 plt.close(fig='all')
 
 fig_pie,ax_pie=plt.subplots()
@@ -1062,7 +1062,7 @@ mmsp.pie_plotter(ax_pie,[j_dot_E_struct_para_sum['pos'],np.abs(j_dot_E_struct_pa
                   radius=1-w_width, width=w_width,startangle=angle)
 
 fig_pie.savefig(os.path.join(statistics_out_directory,
-                             "j_dot_e_pie_para"+".png"),bbox_inches='tight')
+                             "j_dot_e_pie_para"+".pdf"),bbox_inches='tight')
 plt.close(fig='all')
 
 fig_pie,ax_pie=plt.subplots()
@@ -1083,7 +1083,7 @@ mmsp.pie_plotter(ax_pie,[j_dot_E_struct_perp_sum['pos'],np.abs(j_dot_E_struct_pe
                  radius=1-w_width, width=w_width,startangle=angle)
 
 fig_pie.savefig(os.path.join(statistics_out_directory,
-                             "j_dot_e_pie_perp"+".png"),bbox_inches='tight')
+                             "j_dot_e_pie_perp"+".pdf"),bbox_inches='tight')
 plt.close(fig='all')
 
 print(MMS_structure_counts)
