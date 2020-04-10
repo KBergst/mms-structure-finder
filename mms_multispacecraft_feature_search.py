@@ -61,7 +61,7 @@ nbins=15 #number of bins for the size histograms
 
 DEBUG=0 #chooses whether to stop at iteration 15 or not
 REPLOT=0 #chooses whether to regenerate the plots or not
-REHIST=0 #chooses whether to regenerate the histograms and scatter plots or not
+REHIST=1 #chooses whether to regenerate the histograms and scatter plots or not
 
 ###### CLASS DEFINITIONS ######################################################
 class Structure:
@@ -828,15 +828,67 @@ for i in range(len(crossing_indices_M1)):
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
                                 plot_out_name+str(i)+".png"), 
                                 bbox_inches='tight')
-        plt.close(fig="all")                                  
+        plt.close(fig="all")    
+
+    if(i==6 or i==35 or i==80): #example plots for paper
+        gridsize=(3,1)
+        fig=plt.figure(figsize=(5,4)) #width,height
+        ax1=plt.subplot2grid(gridsize,(0,0))
+        ax2=plt.subplot2grid(gridsize,(1,0))   
+        ax3=plt.subplot2grid(gridsize,(2,0)) 
+        start_time=time_cut_b[0]
+        time_cut_delta=time_cut_b - start_time
+        time_cut_ms=time_cut_delta/dt.timedelta(microseconds=1)
+        crossing_time_ms=(crossing_time-start_time)/dt.timedelta(microseconds=1)
+        crossing_struct_times_ms=[(crossing_struct_times[i][0]-start_time)/dt.timedelta(microseconds=1),
+                                  (crossing_struct_times[i][1]-start_time)/dt.timedelta(microseconds=1)]
+        for M in MMS: #plot smoothed B-field  
+            bz=b_field_cut_sync[M][:,2]
+            mmsp.tseries_plotter(fig,ax1,time_cut_b,bz,
+                                 labels=['','',b_label[2]],
+                                 lims=[min(time_cut_b),
+                                       max(time_cut_b)],
+                                 legend=M)
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+        ax1.tick_params(labelbottom=False)
+        for j in range(3): #plot the structure velocities
+            mmsp.tseries_plotter(fig,ax2,time_struct_b,
+                                 velocs[:,j],
+                                 labels=['','',r'$v_{normal}$ (km/s)'],
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=veloc_legend[j])
+        mmsp.tseries_plotter(fig,ax2,time_struct_b,
+                                 vtot,
+                                 labels=['','',r'$v_{normal}$ (km/s)'],
+                                 lims=[min(time_cut_b),max(time_cut_b)],
+                                 legend=veloc_legend[3])  
+        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+        ax2.tick_params(labelbottom=False)
+        for j in range(3):  #plot j  
+            mmsp.basic_plotter(ax3,time_cut_ms,j_cut_sync[:,j],labels=['',r'$\mu s$ after {}'.format(start_time.strftime("%b %d %Y %H:%M:%S.%f")),
+                                 r'$J_y$ GSM $(\mu A/m^2)$ '],
+                                 xlims=[min(time_cut_ms),max(time_cut_ms)],
+                                 legend=j_legend[j]) 
+        ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+        ax3.xaxis.set_major_formatter(mpl.ticker.FormatStrFormatter('%.0e'))
+        #add horizontal and vertical lines to plot (crossing + extent)
+        mmsp.line_maker([ax1,ax2],time=crossing_time,edges=crossing_struct_times[i],
+                        horiz=0.)
+        mmsp.line_maker([ax3],time=crossing_time_ms,edges=crossing_struct_times_ms,
+                        horiz=0.)
+        fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
+                                'paperfig'+str(i)+".png"), 
+                                bbox_inches='tight')
+        plt.close(fig="all") 
+        
 
 """ STATISTICAL PART """
 
 #make bar chart of the different types of structures
-fig_bar,ax_bar=plt.subplots()
+fig_bar,ax_bar=plt.subplots(figsize=(5,4))
 mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
-                                         'Type of structure',
-                                         'Number of instances']) 
+                                         '',
+                                         'Counts']) 
 fig_bar.savefig(os.path.join(statistics_out_directory,
                              "types_bar_chart"+".png"),bbox_inches='tight')
 plt.close(fig='all')

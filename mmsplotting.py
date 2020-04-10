@@ -210,7 +210,7 @@ def textify(string):
 
 ##### PLOTTING FNS ############################################################
 def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
-                  yerrors=None,square=False,ylims=None,colorval=None,**kwargs):
+                  yerrors=None,square=False,xlims=None,ylims=None,colorval=None,**kwargs):
     '''
     plotter function using matplotlib (mpl) objects
     For timeseries plots ONLY (may generalize in the future)
@@ -229,9 +229,12 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
         y errors- the y error bars for each point. Default None, can either be
             a constant value or have the same dimension as data1 and data2
         square- true if want square plot, false if not. Default False
+        xlims- list containing the plotting limits for the x axis
+            xlims[0] is the minimum x-value 
+            xlims[1] is the maximum x-value
         ylims- list containing the plotting limits for the y axis
-            lims[0] is the minimum y-value 
-            lims[1] is the maximum y-value
+            ylims[0] is the minimum y-value 
+            ylims[1] is the maximum y-value
         colorval- for specifying color, default None
     Outputs:
         out- the ax.plot instance used
@@ -247,10 +250,12 @@ def basic_plotter(ax,data1,data2,equalax=False,legend=None,labels=None,
         xlims,ylims=window_squarer(data1,data2)
         ax.set_xlim(xlims[0],xlims[1])
         ax.set_ylim(ylims[0],ylims[1])
-    ax.legend(edgecolor='black')
+    ax.legend(edgecolor='black',loc='upper right')
     
     if (ylims is not None):
         ax.set_ylim(ylims[0],ylims[1])
+    if (xlims is not None):
+        ax.set_xlim(xlims[0],xlims[1])
         
     return out
 
@@ -673,7 +678,7 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
         if log:
             structure_type+='_log'
             
-        fig.savefig(os.path.join(out,"{}_hist_{}.png".format(attr,
+        fig.savefig(os.path.join(out,"{}_hist_{}.pdf".format(attr,
                                  urlify(structure_type))), bbox_inches='tight')
         plt.close(fig='all')
 
@@ -860,11 +865,11 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
     #make histograms
     for structure_type in structure_key:
         #structure data
-        labels=['{} of {} over all satellites'.format(attrs.capitalize(),
+        labels=['{} of {}'.format(attrs.capitalize(),
                     structure_type),
                     '{} ({})'.format(attr_txt.capitalize(),
                                      attr_units),
-                    'Number of instances']        
+                    'Counts']        
         total_data=np.array([])
         for structure in data:
             if structure.kind == structure_type:
@@ -875,7 +880,7 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
         #plot everything    
         mpl.rcParams.update(mpl.rcParamsDefault) #restores default plot style
         plt.rcParams.update({'figure.autolayout': True}) #plot won't overrun 
-        fig,ax=plt.subplots()
+        fig,ax=plt.subplots(figsize=(5,4))
         
         (vals,bins,tmp),histerrs=histogram_plotter(ax,total_data,labels,all_limits,
                           n_bins=bins_num,logscale=log)
@@ -922,19 +927,22 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
             
             ## plotting including errors
             basic_plotter(ax,x_exp,area*y_exp, ylims=[0,max(vals)+10],
-                          legend=r'Exponential distribution $Ae^{{(b+x)/c }}$'+'\n'
-                                     r'A={}$\pm${}, b={}$\pm${}, c={}$\pm${}'
-                                   r' KS p-value = {}'.format(f"{area/params_exp[1]:.1f}",f"{np.std(exp_coeff1):.1f}",
-                                     f"{params_exp[0]:.1f}",f"{np.std(exp_coeff2):.1f}",
-                                     f"{params_exp[1]:.1f}",f"{np.std(exp_coeff3):.1f}",
+                          legend=r'Exponential distribution $Ae^{{(b+x)/c }}$'
+                                  +'\n'
+                                  +r'A={}$\pm${}, b={}$\pm${},'.format(f"{area/params_exp[1]:.1f}",f"{np.std(exp_coeff1):.1f}",
+                                     f"{params_exp[0]:.1f}",f"{np.std(exp_coeff2):.1f}")
+                                  +'\n'
+                                  +r'c={}$\pm${}  KS p-value = {}'.format(f"{params_exp[1]:.1f}",
+                                       f"{np.std(exp_coeff3):.1f}",
                                      f"{ks_exp[1]:.2f}"),colorval="blue")
             basic_plotter(ax,x_pwr,area*y_pwr, ylims=[0,max(vals)+10],
-                          legend=r'Power law distribution $A(b+x)^{{-c }}$'+'\n'
-                                  r'A={} $\pm$ {}, b={}$\pm${}, c={}$\pm${}'
-                                   r' KS p-value = {}'.format(f"{area*params_pwr[2]**(params_pwr[0]-1):.1e}",f"{np.std(pwr_coeff1):.1e}",
-                                     f"{params_pwr[1]:.1f}",f"{np.std(pwr_coeff2):.1f}",
-                                     f"{params_pwr[0]:.2f}",f"{np.std(pwr_coeff3):.2f}",
-                                     f"{ks_pwr[1]:.2f}"), colorval="red")
+                          legend=r'Power law distribution $A(b+x)^{{-c }}$'
+                                  +'\n'
+                                  +r'A={} $\pm$ {}, b={}$\pm${},'.format(f"{area*params_pwr[2]**(params_pwr[0]-1):.1e}",f"{np.std(pwr_coeff1):.1e}",
+                                     f"{params_pwr[1]:.1f}",f"{np.std(pwr_coeff2):.1f}")
+                                  +'\n'
+                                  +r'c={}$\pm${}   KS p-value = {}'.format(f"{params_pwr[0]:.2f}",f"{np.std(pwr_coeff3):.2f}",
+                                     f"{ks_pwr[1]:.2f}"), colorval="green")
 #            basic_plotter(ax,x_gamm,area*y_gamm, ylims=[0,max(vals)+10],
 #                          legend=r'Gamma distribution $\sim(b+x)^{{-p }} e^{{-(b+x)/c}}$'+'\n'
 #                                  r'b={}, p={}, c={}'
@@ -942,18 +950,18 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
 #                                     f"{params_gamm[0]:.2f}",f"{params_gamm[2]:.2f}", f"{ks_gamm[1]:.2f}"), colorval="red")
 #            
             #make ppplots and save separately
-            figpp,axpp=plt.subplots(2)
+            figpp,axpp=plt.subplots(figsize=(4,4))
             #Probplot objects
             pp_exp=sm.ProbPlot(total_data,'expon',loc=params_exp[0],scale=params_exp[1])
             pp_pwr=sm.ProbPlot(total_data,pwr,loc=params_pwr[1],scale=params_pwr[2],
                                distargs=(params_pwr[0],))
 #            pp_gamm=sm.ProbPlot(total_data,gamm,loc=params_gamm[1],scale=params_gamm[2],
-#                               distargs=(params_gamm[0],))            
-            pp_exp.ppplot(line='45',ax=axpp[0])
-            pp_pwr.ppplot(line='45',ax=axpp[1])
+#                               distargs=(params_gamm[0],))           
+            pp_exp.ppplot(line='45',ax=axpp,**{'marker':'.','label':'Exponential','color':'blue'})
+            pp_pwr.ppplot(line='45',ax=axpp,**{'marker':'v','label':'Power law','color':'green'})
 #            pp_gamm.ppplot(line='45',ax=axpp[2])            
-            axpp[0].set(title="Probability-probability plot against exponential distribution")
-            axpp[1].set(title="Probability-probability against power-law distribution")
+            axpp.set(title="Probability-probability plots against distributions")
+            axpp.legend(edgecolor='black',loc='upper left')
 #            axpp[2].set(title="Probability-probability against gamma distribution")
 
             #make qqplots and save separately
@@ -966,10 +974,10 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
             qqsuffix=''
             if log:
                 qqsuffix='log'
-            figpp.savefig(os.path.join(out,"{}_pplot{}{}.png".format(attr,urlify(structure_type),
+            figpp.savefig(os.path.join(out,"{}_pplot{}{}.pdf".format(attr,urlify(structure_type),
                                        qqsuffix)),
                           bbox_inches='tight')
-            figqq.savefig(os.path.join(out,"{}_qqlot{}{}.png".format(attr,urlify(structure_type),
+            figqq.savefig(os.path.join(out,"{}_qqlot{}{}.pdf".format(attr,urlify(structure_type),
                                        qqsuffix)),
                           bbox_inches='tight')
             
@@ -982,27 +990,26 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
                 if structure.kind == structure_type:
                     structure_dat=getattr(structure,'j_dot_E_perpendicular')                                          
                     je_perp_data=np.append(je_perp_data,structure_dat)
-            all_limits=[min(total_data.min(),je_perp_data.min()),
-                        max(total_data.max(),je_perp_data.max())]
-            fig_je,ax_je=plt.subplots()
-            jelabels=['J dot E of {} over all satellites'.format(structure_type),
+            all_limits=[-.35,.25]
+            fig_je,ax_je=plt.subplots(figsize=(4,4))
+            jelabels=['J dot E of {}'.format(structure_type),
                     'J dot E ({})'.format(attr_units),
-                    'Number of instances']  
+                    'Counts']  
             kw={'histtype':'step','stacked':False,'fill':False}
             kw['color']=['blue','red']
             kw['label']=[r'$J_\parallel E_\parallel$',r'$J_\perp \cdot E_\perp$']
             histogram_plotter(ax_je,[total_data,je_perp_data],jelabels,all_limits,n_bins=bins_num,
                               logscale=False,errs=False,**kw)
             ax_je.axvline(x=0,color='black',linestyle=':')
-            ax_je.legend(edgecolor='black')
-            fig_je.savefig(os.path.join(out,"J_dot_E_tot_hist_{}.png".format(urlify(structure_type))),
+            ax_je.legend(edgecolor='black',loc='upper left')
+            fig_je.savefig(os.path.join(out,"J_dot_E_tot_hist_{}.pdf".format(urlify(structure_type))),
                            bbox_inches='tight')
             
 
         if log:
             structure_type+='_log'
             
-        fig.savefig(os.path.join(out,"{}_hist_{}.png".format(attr,
+        fig.savefig(os.path.join(out,"{}_hist_{}.pdf".format(attr,
                                  urlify(structure_type))), bbox_inches='tight')
         plt.close(fig='all')
 
@@ -1065,7 +1072,7 @@ def msc_structure_scatter_maker(data,attr1,attr2,out,structure_key):
             basic_plotter(ax,x,y2)
 
             
-        fig.savefig(os.path.join(out,"{}_{}_scatter_{}.png".format(attr1,attr2,
+        fig.savefig(os.path.join(out,"{}_{}_scatter_{}.pdf".format(attr1,attr2,
                                  urlify(structure_type))), bbox_inches='tight')
         plt.close(fig='all')
         
