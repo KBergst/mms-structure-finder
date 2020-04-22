@@ -678,7 +678,7 @@ def structure_hist_maker(data,attr,out,bins_num,structure_key,
         if log:
             structure_type+='_log'
             
-        fig.savefig(os.path.join(out,"{}_hist_{}.pdf".format(attr,
+        fig.savefig(os.path.join(out,"{}_hist_{}.svg".format(attr,
                                  urlify(structure_type))), bbox_inches='tight')
         plt.close(fig='all')
 
@@ -974,10 +974,10 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
             qqsuffix=''
             if log:
                 qqsuffix='log'
-            figpp.savefig(os.path.join(out,"{}_pplot{}{}.pdf".format(attr,urlify(structure_type),
+            figpp.savefig(os.path.join(out,"{}_pplot{}{}.svg".format(attr,urlify(structure_type),
                                        qqsuffix)),
                           bbox_inches='tight')
-            figqq.savefig(os.path.join(out,"{}_qqlot{}{}.pdf".format(attr,urlify(structure_type),
+            figqq.savefig(os.path.join(out,"{}_qqlot{}{}.svg".format(attr,urlify(structure_type),
                                        qqsuffix)),
                           bbox_inches='tight')
             
@@ -1002,14 +1002,14 @@ def msc_structure_hist_maker(data,attr,out,bins_num,structure_key,
                               logscale=False,errs=False,**kw)
             ax_je.axvline(x=0,color='black',linestyle=':')
             ax_je.legend(edgecolor='black',loc='upper left')
-            fig_je.savefig(os.path.join(out,"J_dot_E_tot_hist_{}.pdf".format(urlify(structure_type))),
+            fig_je.savefig(os.path.join(out,"J_dot_E_tot_hist_{}.svg".format(urlify(structure_type))),
                            bbox_inches='tight')
             
 
         if log:
             structure_type+='_log'
             
-        fig.savefig(os.path.join(out,"{}_hist_{}.pdf".format(attr,
+        fig.savefig(os.path.join(out,"{}_hist_{}.svg".format(attr,
                                  urlify(structure_type))), bbox_inches='tight')
         plt.close(fig='all')
 
@@ -1072,7 +1072,7 @@ def msc_structure_scatter_maker(data,attr1,attr2,out,structure_key):
             basic_plotter(ax,x,y2)
 
             
-        fig.savefig(os.path.join(out,"{}_{}_scatter_{}.pdf".format(attr1,attr2,
+        fig.savefig(os.path.join(out,"{}_{}_scatter_{}.svg".format(attr1,attr2,
                                  urlify(structure_type))), bbox_inches='tight')
         plt.close(fig='all')
         

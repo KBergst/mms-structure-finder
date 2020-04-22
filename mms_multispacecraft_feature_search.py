@@ -838,10 +838,10 @@ for i in range(len(crossing_indices_M1)):
         ax3=plt.subplot2grid(gridsize,(2,0)) 
         start_time=time_cut_b[0]
         time_cut_delta=time_cut_b - start_time
-        time_cut_ms=time_cut_delta/dt.timedelta(microseconds=1)
-        crossing_time_ms=(crossing_time-start_time)/dt.timedelta(microseconds=1)
-        crossing_struct_times_ms=[(crossing_struct_times[i][0]-start_time)/dt.timedelta(microseconds=1),
-                                  (crossing_struct_times[i][1]-start_time)/dt.timedelta(microseconds=1)]
+        time_cut_s=time_cut_delta/dt.timedelta(microseconds=1)/1e6
+        crossing_time_s=(crossing_time-start_time)/dt.timedelta(microseconds=1)/1e6
+        crossing_struct_times_s=[(crossing_struct_times[i][0]-start_time)/dt.timedelta(microseconds=1)/1e6,
+                                  (crossing_struct_times[i][1]-start_time)/dt.timedelta(microseconds=1)/1e6]
         for M in MMS: #plot smoothed B-field  
             bz=b_field_cut_sync[M][:,2]
             mmsp.tseries_plotter(fig,ax1,time_cut_b,bz,
@@ -865,19 +865,19 @@ for i in range(len(crossing_indices_M1)):
         ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
         ax2.tick_params(labelbottom=False)
         for j in range(3):  #plot j  
-            mmsp.basic_plotter(ax3,time_cut_ms,j_cut_sync[:,j],labels=['',r'$\mu s$ after {}'.format(start_time.strftime("%b %d %Y %H:%M:%S.%f")),
+            mmsp.basic_plotter(ax3,time_cut_s,j_cut_sync[:,j],labels=['',r'$s$ after {}'.format(start_time.strftime("%b %d %Y %H:%M:%S.%f")),
                                  r'$J_y$ GSM $(\mu A/m^2)$ '],
-                                 xlims=[min(time_cut_ms),max(time_cut_ms)],
+                                 xlims=[min(time_cut_s),max(time_cut_s)],
                                  legend=j_legend[j]) 
         ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-        ax3.xaxis.set_major_formatter(mpl.ticker.FormatStrFormatter('%.0e'))
+#        ax3.xaxis.set_major_formatter(mpl.ticker.FormatStrFormatter('%.0e'))
         #add horizontal and vertical lines to plot (crossing + extent)
         mmsp.line_maker([ax1,ax2],time=crossing_time,edges=crossing_struct_times[i],
                         horiz=0.)
-        mmsp.line_maker([ax3],time=crossing_time_ms,edges=crossing_struct_times_ms,
+        mmsp.line_maker([ax3],time=crossing_time_s,edges=crossing_struct_times_s,
                         horiz=0.)
         fig.savefig(os.path.join(timeseries_out_directory,'MMS'+'_'+ \
-                                'paperfig'+str(i)+".pdf"), 
+                                'paperfig'+str(i)+".svg"), 
                                 bbox_inches='tight')
         plt.close(fig="all") 
         
@@ -890,7 +890,7 @@ mmsp.bar_charter(ax_bar,MMS_structure_counts,['Types of structures seen by MMS',
                                          '',
                                          'Counts']) 
 fig_bar.savefig(os.path.join(statistics_out_directory,
-                             "types_bar_chart"+".pdf"),bbox_inches='tight')
+                             "types_bar_chart"+".svg"),bbox_inches='tight')
 plt.close(fig='all')
 
 if(REHIST):
@@ -1037,7 +1037,7 @@ mmsp.pie_plotter(ax_pie,[j_dot_E_para_struct_tot,j_dot_E_para_out_tot,j_dot_E_pe
                   r"$J_{\perp} \cdot E_{\perp}$"+ "\n within"],
                  radius=1,width=2*w_width)
 fig_pie.savefig(os.path.join(statistics_out_directory,
-                             "j_dot_e_pie_overall"+".pdf"),bbox_inches='tight')
+                             "j_dot_e_pie_overall"+".svg"),bbox_inches='tight')
 plt.close(fig='all')
 
 fig_pie,ax_pie=plt.subplots()
@@ -1062,7 +1062,7 @@ mmsp.pie_plotter(ax_pie,[j_dot_E_struct_para_sum['pos'],np.abs(j_dot_E_struct_pa
                   radius=1-w_width, width=w_width,startangle=angle)
 
 fig_pie.savefig(os.path.join(statistics_out_directory,
-                             "j_dot_e_pie_para"+".pdf"),bbox_inches='tight')
+                             "j_dot_e_pie_para"+".svg"),bbox_inches='tight')
 plt.close(fig='all')
 
 fig_pie,ax_pie=plt.subplots()
@@ -1083,7 +1083,7 @@ mmsp.pie_plotter(ax_pie,[j_dot_E_struct_perp_sum['pos'],np.abs(j_dot_E_struct_pe
                  radius=1-w_width, width=w_width,startangle=angle)
 
 fig_pie.savefig(os.path.join(statistics_out_directory,
-                             "j_dot_e_pie_perp"+".pdf"),bbox_inches='tight')
+                             "j_dot_e_pie_perp"+".svg"),bbox_inches='tight')
 plt.close(fig='all')
 
 print(MMS_structure_counts)
