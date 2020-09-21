@@ -1103,17 +1103,3 @@ print(MMS_structure_counts)
 #check how long the code took to run
 end=time.time()
 print("Code executed in "+str(dt.timedelta(seconds=end-start))) 
-
-#To-do list:
-#TODO: improve mechanism used to determine what time section to do the multi-spacecraft tech on
-    #right now just what MMS1 says is the structure   
-    #may have to do for now
-#TODO: optimization- list appends are faster than numpy concatenates, so 
-    #read in data as list of numpy arrays and then concatenate it all along the right axis
-    #at the end for faster code.
-#TODO: pressure stuff! import the FPI pressure tensors, convert them to scalar pressures
-    #(if applicable) and figure out if they are balanced and what that means for the likelihood
-    #of the structure to be spatial and not some time-based transient
-    #not sure if this analysis is at all valid (esp in turbulent plasma), but
-    #why not check it out anyways?
-#TODO:check if reshaping of CDF variables is necessary or if they are just good
