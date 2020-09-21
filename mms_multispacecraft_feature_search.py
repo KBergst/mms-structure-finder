@@ -84,6 +84,10 @@ class Structure:
         self.j_dot_E_parallel=je_para
         self.j_dot_E_perpendicular=je_perp
         
+        #back out the ion/electron skin depth because I set this up dumb
+        self.ion_skin_depth=size/size_p
+        self.electron_skin_depth=size/size_e
+        
     #for pluralization in outputs
     plurals={'size':'sizes',
                  'electron_normalized_size':'electron-normalized sizes',
@@ -98,7 +102,9 @@ class Structure:
                   'duration':'durations',
                   'dimensionality':'dimensionalities',
                   'j_dot_E_parallel':r'averaged parallel components of J$\cdot$E',
-                  'j_dot_E_perpendicular':r'averaged perpendicular components of J$\cdot$E'
+                  'j_dot_E_perpendicular':r'averaged perpendicular components of J$\cdot$E',
+                  'electron_skin_depth':r'electron skin depths',
+                  'ion_skin_depth':r'ion skin depths'
                 }
     
     #for getting units
@@ -115,7 +121,9 @@ class Structure:
                 'duration':'s',
                 'dimensionality':'',
                 'j_dot_E_parallel':r'nW/$m^3$',
-                'j_dot_E_perpendicular':r'nW/$m^3$'
+                'j_dot_E_perpendicular':r'nW/$m^3$',
+                'electron_skin_depth':'km',
+                'ion_skin_depth':'km',
             }
 
 ###### MAIN ###################################################################
@@ -900,6 +908,11 @@ if(REHIST):
                               structure_kinds)    
     mmsp.msc_structure_hist_maker(MMS_structures,"size",hists_out_directory,
                               nbins_small,structure_kinds, log=True)
+    #make histograms of the ion and electron skin depths of all structures
+    mmsp.msc_structure_hist_maker(MMS_structures,"ion_skin_depth",hists_out_directory,nbins,
+                              structure_kinds)    
+    mmsp.msc_structure_hist_maker(MMS_structures,"electron_skin_depth",hists_out_directory,
+                              nbins,structure_kinds)    
     #make histograms of the time durations of all structures
     mmsp.msc_structure_hist_maker(MMS_structures,"duration",hists_out_directory,
                                   nbins,structure_kinds)   
