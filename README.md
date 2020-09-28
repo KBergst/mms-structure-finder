@@ -1,4 +1,6 @@
 # mms-structure-finder
+<NOTE: documentation (Especially in-code) may be out of date!>
+<NOTE: if viewing from DataSpace, you will need to populate the MMS folder tree with data from the MMS science data center yourself.>
 
 Houses my code developed to identify plasmoids and current sheets in MMS data, and do statistics on them. Also includes all of the MMS CDF files that are being used for the current analysis of the July 26, 2017 turbulent reconnection event in the magnetotail.
 
