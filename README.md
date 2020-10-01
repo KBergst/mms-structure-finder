@@ -1,8 +1,8 @@
 # mms-structure-finder
-<NOTE: documentation (Especially in-code) may be out of date!>
-<NOTE: if viewing from DataSpace, you will need to populate the MMS folder tree with data from the MMS science data center yourself.>
+NOTE: documentation (Especially in-code) may be out of date!
+NOTE: if viewing from DataSpace, you will need to populate the MMS folder tree with data from the MMS science data center yourself (https://lasp.colorado.edu/mms/sdc/public/).
 
-Houses my code developed to identify plasmoids and current sheets in MMS data, and do statistics on them. Also includes all of the MMS CDF files that are being used for the current analysis of the July 26, 2017 turbulent reconnection event in the magnetotail.
+Houses my code developed to identify plasmoids and current sheets in MMS data, and do statistics on them. Built for the MMS CDF files of the July 26, 2017 turbulent reconnection event in the magnetotail.
 
 Installation:
 
@@ -26,23 +26,32 @@ Brief description of the different files:
     
     structure_scale_comparisons- directory containing zoomed-out look at structures to evaluate the performance of the selection mechanism, namely the selection of the structural extent.
     
-    MMS<#>_crossing*.png- the output graphs for a single structure identified by mms_feature_search.py
+    MMS#_crossing*.png- the output graphs for a single structure identified by mms_feature_search.py
   
   MMS- directory containing data from each MMS satellite in the time period of interest, organized in sub-directories by spacecraft
   
-    <obj>_file_location_key.txt- file containing a list of the filenames that contain <obj> data (e.g. magnetic field, des (electron moments), dis (ion moments))
+    *_file_location_key.txt- file containing a list of the filenames that contain * data (e.g. magnetic field, des (electron moments), dis (ion moments))
   
     *.cdf- the MMS CDF data in question
+  ms_feature_search- directory that is not part of the repository, but will be populated with outputs from the mms_multispacecraft_feature_search.py script.
   
+    statistics- directory containing statistical outputs from the mms_multispacecraft_feature_search.py script
+
+    MMS_ms_crossing*.png- the output graphs for a single structure identified by mms_multispacecraft_feature_search.py
+
   key_for_curlometer.txt- text file containing the end text of the files needed for the mms_curlometer.py script. Works for all spacecraft.
   
   mms_curlometer.py- python script for computing the curlometer current density
   
   mms_feature_search.py- python script for identifying structures in MMS data and doing statistics on them
+
+  mms_multispacecraft_feature_search.py- python script for identifying structures in MMS data and doing statistics on them, including multi-spacecraft techniques. Uses all modules mms_feature_search does.
   
   mmsarrays.py- module for mms_feature_search that contains functions for basic array operations
   
   mmsdata.py- module for mms_feature_search that contains functions for reading in data from files
+
+  mmsmultispacecraft.py- module for mms_multispacecraft_feature_search that contains functions for multispacecraft analysis techniques
   
   mmsplotting.py- module for mms_feature_search that contains functions for plotting
   
